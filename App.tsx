@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AppState as RNAppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -39,6 +39,20 @@ function Root() {
     });
     return () => sub.remove();
   }, [appLock]);
+
+  // Turning the lock on from Settings must not lock the user out on the spot
+  // — they just authenticated to enable it. A lock that was already on at
+  // launch still locks, so the first run after load only records a baseline.
+  const lockBaselineRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!loaded) return;
+    if (lockBaselineRef.current === null) {
+      lockBaselineRef.current = appLock;
+      return;
+    }
+    if (appLock && !lockBaselineRef.current) setUnlocked(true);
+    lockBaselineRef.current = appLock;
+  }, [loaded, appLock]);
 
   // Home-screen quick action: long-press the app icon -> "Add entry"
   useEffect(() => {

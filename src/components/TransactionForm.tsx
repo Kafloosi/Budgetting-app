@@ -85,8 +85,10 @@ export function TransactionForm({
   const [showPicker, setShowPicker] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | undefined>(initial?.photoUri);
   const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
+  // Only default for new entries. Falling back to the first account while
+  // editing would silently move an older entry into it and shift balances.
   const [accountId, setAccountId] = useState<string | undefined>(
-    initial?.accountId ?? state.accounts[0]?.id,
+    initial ? initial.accountId : state.accounts[0]?.id,
   );
 
   const pickPhoto = async (fromCamera: boolean) => {

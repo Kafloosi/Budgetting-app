@@ -142,11 +142,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // changes. Stored data only moves while the app is open, so the summary
   // scheduled here is still accurate when it fires on Sunday.
   const digestEnabled = state.settings.weeklyDigest;
-  const transactions = state.transactions;
+  const digestMessage = useMemo(
+    () => weekDigestMessage(weekDigest(state.transactions)),
+    [state.transactions],
+  );
   useEffect(() => {
     if (!loaded) return;
-    syncWeeklyDigest(digestEnabled, weekDigestMessage(weekDigest(transactions)));
-  }, [loaded, digestEnabled, transactions]);
+    // Keyed on the message, not the entry list: editing an old month leaves
+    // this week's summary unchanged and shouldn't hit the native scheduler.
+    syncWeeklyDigest(digestEnabled, digestMessage);
+  }, [loaded, digestEnabled, digestMessage]);
 
   useEffect(() => {
     if (!loadedRef.current) return;
