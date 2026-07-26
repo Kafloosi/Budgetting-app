@@ -233,7 +233,7 @@ export default function SettingsScreen() {
       default:
         Alert.alert(
           'Not available yet',
-          'Purchases restore automatically once the app is installed from the Play Store / App Store. On this build, re-enter your unlock code — or import a backup, since backups include your Pro unlock.',
+          'Purchases restore automatically once the app is installed from the Play Store / App Store. On this build, re-enter your unlock code.',
         );
     }
   };
@@ -353,7 +353,7 @@ export default function SettingsScreen() {
       });
       if (res.canceled || !res.assets?.[0]) return;
       const text = await FileSystem.readAsStringAsync(res.assets[0].uri);
-      const next = parseBackup(text);
+      const next = parseBackup(text, state.settings.premium);
       if (!next) {
         Alert.alert('Invalid file', 'This does not look like a budget backup.');
         return;
@@ -792,8 +792,9 @@ export default function SettingsScreen() {
         <Text style={[styles.mutedSmall, { marginTop: spacing.m }]}>
           Everything is stored on this phone only. Export a backup before
           switching phones, and share the JSON with another phone to copy your
-          budget there (import replaces that phone's data). Receipt photos are
-          not included in backups.
+          budget there (import replaces that phone's data). Receipt photos and
+          your Pro unlock are not included — restore Pro with your purchase or
+          unlock code.
         </Text>
       </Card>
     </ScrollView>

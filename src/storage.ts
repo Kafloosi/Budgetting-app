@@ -138,8 +138,15 @@ export function serializeBackup(state: AppState): string {
   );
 }
 
-/** Parse backup text into a caught-up AppState. Returns null when invalid. */
-export function parseBackup(text: string): AppState | null {
+/**
+ * Parse backup text into a caught-up AppState. Returns null when invalid.
+ *
+ * The Pro unlock is deliberately NOT taken from the file: a backup is a
+ * plain JSON document, so honouring its `premium` flag would let anyone
+ * hand out Pro by sharing an edited export. Restoring on a new phone goes
+ * through the purchase or an unlock code instead.
+ */
+export function parseBackup(text: string, currentPremium: boolean): AppState | null {
   try {
     const parsed = JSON.parse(text);
     // Accept both the export envelope and a raw state object
@@ -147,7 +154,11 @@ export function parseBackup(text: string): AppState | null {
     if (!Array.isArray(raw?.people) || !Array.isArray(raw?.transactions)) {
       return null;
     }
-    return catchUp(migrate(raw));
+    const migrated = migrate(raw);
+    return catchUp({
+      ...migrated,
+      settings: { ...migrated.settings, premium: currentPremium },
+    });
   } catch {
     return null;
   }
