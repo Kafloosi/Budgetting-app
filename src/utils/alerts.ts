@@ -1,8 +1,8 @@
-import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
 import { AppState, BudgetAlertLog } from '../types';
-import { allCategories, categoryById, OTHER_CATEGORY_ID } from '../categories';
-import { currentMonthKey, formatCents, monthKey } from './money';
+import { categoryById } from '../categories';
+import { expenseCentsByCategory } from './aggregate';
+import { currentMonthKey, formatCents } from './money';
+import { scheduleNotification } from './notifications';
 
 /** Fraction of a budget at which the "almost at the limit" warning fires */
 export const NEAR_THRESHOLD = 0.85;
@@ -22,15 +22,12 @@ export interface DueBudgetAlert {
 export function dueBudgetAlerts(state: AppState, month = currentMonthKey()): DueBudgetAlert[] {
   if (!state.settings.budgetAlerts) return [];
 
-  // Only the id is needed while scanning; resolve full categories lazily below
-  const validIds = new Set(allCategories(state.customCategories).map((c) => c.id));
-  const spentByCategory = new Map<string, number>();
-  for (const t of state.transactions) {
-    if (t.type !== 'expense' || monthKey(t.date) !== month) continue;
-    const id =
-      t.categoryId && validIds.has(t.categoryId) ? t.categoryId : OTHER_CATEGORY_ID;
-    spentByCategory.set(id, (spentByCategory.get(id) ?? 0) + t.amountCents);
-  }
+  const spentByCategory = expenseCentsByCategory(
+    state.transactions,
+    state.customCategories,
+    'month',
+    month,
+  );
 
   const due: DueBudgetAlert[] = [];
   for (const [categoryId, limitCents] of Object.entries(state.budgets)) {
@@ -70,35 +67,8 @@ export function pruneAlertLog(log: BudgetAlertLog, month = currentMonthKey()): B
   );
 }
 
-export async function ensureNotificationPermission(): Promise<boolean> {
-  try {
-    const current = await Notifications.getPermissionsAsync();
-    if (current.granted) return true;
-    const requested = await Notifications.requestPermissionsAsync();
-    return requested.granted;
-  } catch {
-    return false;
-  }
-}
-
-let channelReady = false;
-
 export async function sendBudgetNotifications(alerts: DueBudgetAlert[]): Promise<void> {
-  try {
-    if (Platform.OS === 'android' && !channelReady) {
-      await Notifications.setNotificationChannelAsync('budget', {
-        name: 'Budget alerts',
-        importance: Notifications.AndroidImportance.DEFAULT,
-      });
-      channelReady = true;
-    }
-    for (const alert of alerts) {
-      await Notifications.scheduleNotificationAsync({
-        content: { title: alert.title, body: alert.body },
-        trigger: null, // deliver immediately
-      });
-    }
-  } catch {
-    // Notifications are best-effort; never block the app on them.
+  for (const alert of alerts) {
+    await scheduleNotification({ title: alert.title, body: alert.body });
   }
 }

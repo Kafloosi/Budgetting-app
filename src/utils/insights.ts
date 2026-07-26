@@ -1,0 +1,102 @@
+import { Category, Transaction } from '../types';
+import { categoryById } from '../categories';
+import { expenseCentsByCategory } from './aggregate';
+import {
+  currentMonthKey,
+  daysInMonth,
+  formatCents,
+  formatMonth,
+  monthKey,
+  shiftMonth,
+  todayIso,
+} from './money';
+
+export interface Insight {
+  emoji: string;
+  text: string;
+}
+
+/** Premium: plain-language observations about the selected month's spending */
+export function computeInsights(
+  transactions: Transaction[],
+  customCategories: Category[],
+  month: string,
+): Insight[] {
+  const prevMonth = shiftMonth(month, -1);
+  const byCategory = expenseCentsByCategory(transactions, customCategories, 'month', month);
+  const prevByCategory = expenseCentsByCategory(
+    transactions,
+    customCategories,
+    'month',
+    prevMonth,
+  );
+
+  let spent = 0;
+  for (const cents of byCategory.values()) spent += cents;
+  if (spent === 0) return [];
+
+  let prevSpent = 0;
+  for (const cents of prevByCategory.values()) prevSpent += cents;
+
+  let income = 0;
+  let biggest: { note: string; cents: number } | null = null;
+  for (const t of transactions) {
+    if (monthKey(t.date) !== month) continue;
+    if (t.type === 'income') {
+      income += t.amountCents;
+    } else if (!biggest || t.amountCents > biggest.cents) {
+      biggest = { note: t.note, cents: t.amountCents };
+    }
+  }
+
+  const insights: Insight[] = [];
+
+  if (prevSpent > 0) {
+    const change = Math.round(((spent - prevSpent) / prevSpent) * 100);
+    insights.push({
+      emoji: change > 0 ? '📈' : '📉',
+      text:
+        change === 0
+          ? `You spent about the same as in ${formatMonth(prevMonth)}.`
+          : `You spent ${Math.abs(change)}% ${change > 0 ? 'more' : 'less'} than in ${formatMonth(prevMonth)}.`,
+    });
+  }
+
+  const top = [...byCategory.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (top) {
+    const category = categoryById(customCategories, top[0]);
+    const prev = prevByCategory.get(top[0]) ?? 0;
+    insights.push({
+      emoji: category.emoji,
+      text: `Top category: ${category.name} at ${formatCents(top[1])}${
+        prev > 0 ? ` (${formatCents(prev)} last month)` : ''
+      }.`,
+    });
+  }
+
+  // Only count days that have actually happened in the current month
+  const elapsed =
+    month === currentMonthKey() ? Number(todayIso().slice(8, 10)) : daysInMonth(month);
+  insights.push({
+    emoji: '☀️',
+    text: `Average spend: ${formatCents(Math.round(spent / elapsed))} per day.`,
+  });
+
+  if (biggest) {
+    insights.push({
+      emoji: '💥',
+      text: `Biggest expense: ${biggest.note || 'unnamed'} at ${formatCents(biggest.cents)}.`,
+    });
+  }
+
+  if (income > 0) {
+    const left = income - spent;
+    insights.push(
+      left >= 0
+        ? { emoji: '✅', text: `${formatCents(left)} of this month's income is still unspent.` }
+        : { emoji: '⚠️', text: `Spending exceeds income by ${formatCents(-left)} this month.` },
+    );
+  }
+
+  return insights;
+}

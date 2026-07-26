@@ -16,6 +16,7 @@ import HistoryScreen from './src/screens/HistoryScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import { LockScreen } from './src/components/LockScreen';
+import { UndoSnackbar } from './src/components/UndoSnackbar';
 import { useThemedStyles } from './src/components/ui';
 import { font, scale, spacing, ThemeColors } from './src/theme';
 
@@ -95,6 +96,8 @@ function Root() {
         {activeTab === 'history' && <HistoryScreen />}
         {activeTab === 'settings' && <SettingsScreen />}
       </View>
+
+      <UndoSnackbar />
 
       <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, spacing.s) }]}>
         {tabs.map((t) => {

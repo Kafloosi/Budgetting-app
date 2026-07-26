@@ -178,11 +178,22 @@ export function periodOfDate(type: NavPeriodType, isoDate: string): string {
   return type === 'month' ? monthKey(isoDate) : isoWeekKey(isoDate);
 }
 
+/** Signed month difference between two yyyy-mm keys (to - from) */
+export function monthsBetween(from: string, to: string): number {
+  const [fy, fm] = from.split('-').map(Number);
+  const [ty, tm] = to.split('-').map(Number);
+  return (ty - fy) * 12 + (tm - fm);
+}
+
 /** Whole months from the current month until `deadline` (yyyy-mm), min 1 */
 export function monthsUntil(deadline: string, from = currentMonthKey()): number {
-  const [fy, fm] = from.split('-').map(Number);
-  const [dy, dm] = deadline.split('-').map(Number);
-  return Math.max(1, (dy - fy) * 12 + (dm - fm));
+  return Math.max(1, monthsBetween(from, deadline));
+}
+
+/** Number of days in the given yyyy-mm month */
+export function daysInMonth(month: string): number {
+  const [y, m] = month.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
 }
 
 export function todayIso(): string {
@@ -199,9 +210,7 @@ export function addDays(isoDate: string, days: number): string {
 export function addMonthsClamped(isoDate: string, months: number): string {
   const [y, m, d] = isoDate.split('-').map(Number);
   const firstOfTarget = new Date(Date.UTC(y, m - 1 + months, 1));
-  const daysInTarget = new Date(
-    Date.UTC(firstOfTarget.getUTCFullYear(), firstOfTarget.getUTCMonth() + 1, 0),
-  ).getUTCDate();
+  const daysInTarget = daysInMonth(firstOfTarget.toISOString().slice(0, 7));
   firstOfTarget.setUTCDate(Math.min(d, daysInTarget));
   return firstOfTarget.toISOString().slice(0, 10);
 }

@@ -13,6 +13,7 @@ import {
 import { useApp, useCategories, usePeopleById, useTheme } from '../context/AppContext';
 import { font, radius, scale, spacing, ThemeColors } from '../theme';
 import { currentMonthKey, formatCents, formatDate, monthKey } from '../utils/money';
+import { monthTotals } from '../utils/aggregate';
 import {
   Card,
   Chip,
@@ -56,16 +57,10 @@ export default function HomeScreen() {
   );
 
   // Totals ignore search/type filters so the summary always shows the month
-  const { incomeCents, expenseCents } = useMemo(() => {
-    let income = 0;
-    let expense = 0;
-    for (const t of monthTransactions) {
-      if (t.type === 'income') income += t.amountCents;
-      else expense += t.amountCents;
-    }
-    return { incomeCents: income, expenseCents: expense };
-  }, [monthTransactions]);
-  const netCents = incomeCents - expenseCents;
+  const { incomeCents, expenseCents, netCents } = useMemo(
+    () => monthTotals(monthTransactions, month),
+    [monthTransactions, month],
+  );
 
   const visibleTransactions = useMemo(() => {
     const query = search.trim().toLowerCase();

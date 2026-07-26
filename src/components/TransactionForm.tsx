@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   Alert,
   Image,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -13,7 +14,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { pickReceiptPhoto } from '../utils/receipts';
 import { useApp, useCategories, useTheme } from '../context/AppContext';
-import { font, radius, scale, spacing, ThemeColors } from '../theme';
+import { darkColors, font, radius, scale, spacing, ThemeColors } from '../theme';
 import {
   centsToInput,
   currencySymbol,
@@ -78,6 +79,7 @@ export function TransactionForm({
   const [repeat, setRepeat] = useState<RepeatOption>('none');
   const [showPicker, setShowPicker] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | undefined>(initial?.photoUri);
+  const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
 
   const pickPhoto = async (fromCamera: boolean) => {
     try {
@@ -239,7 +241,9 @@ export function TransactionForm({
         <Label>Receipt photo</Label>
         {photoUri ? (
           <View>
-            <Image source={{ uri: photoUri }} style={styles.photo} resizeMode="cover" />
+            <Pressable onPress={() => setPhotoViewerOpen(true)}>
+              <Image source={{ uri: photoUri }} style={styles.photo} resizeMode="cover" />
+            </Pressable>
             <Pressable onPress={() => setPhotoUri(undefined)} hitSlop={8}>
               <Text style={styles.photoRemove}>Remove photo</Text>
             </Pressable>
@@ -250,6 +254,15 @@ export function TransactionForm({
           </Pressable>
         )}
       </Card>
+
+      {photoViewerOpen && photoUri ? (
+        <Modal visible animationType="fade" onRequestClose={() => setPhotoViewerOpen(false)}>
+          <Pressable style={styles.viewer} onPress={() => setPhotoViewerOpen(false)}>
+            <Image source={{ uri: photoUri }} style={styles.viewerImage} resizeMode="contain" />
+            <Text style={styles.viewerHint}>Tap to close</Text>
+          </Pressable>
+        </Modal>
+      ) : null}
 
       {showRepeat ? (
         <Card>
@@ -344,5 +357,20 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.expense,
       fontSize: font.body,
       fontWeight: '600',
+    },
+    viewer: {
+      flex: 1,
+      backgroundColor: '#000000',
+      justifyContent: 'center',
+    },
+    viewerImage: {
+      width: '100%',
+      height: '85%',
+    },
+    viewerHint: {
+      color: darkColors.textSecondary,
+      textAlign: 'center',
+      fontSize: font.small,
+      paddingBottom: spacing.xl,
     },
   });

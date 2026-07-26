@@ -19,6 +19,22 @@ A simple, phone-first budgeting app for one or more people. Built with **Expo / 
 - **Receipt photos** — attach a camera/library photo to any entry; unreferenced photo files are cleaned up automatically.
 - **Year view** — Stats can switch between month view and a full-year overview (12-month chart + yearly category breakdown).
 - **Quick add** — long-press the app icon for an "Add entry" shortcut.
+- **Settle-up reminder** — optional notification on the 1st of each month (shown with 2+ people).
+- **Undo** — deleting an entry shows an "UNDO" bar for 5 seconds.
+- **Full-screen receipts** — tap an attached photo to view it full screen.
+
+### Budget Pro (one-time €10 unlock)
+
+Core budgeting, splitting, history, and backups are always free. Budget Pro adds:
+
+- **Insights** — plain-language monthly analysis (spend vs last month, top category, daily average, biggest expense, income left).
+- **Home-screen widget** — this month's balance on your Android home screen, refreshed whenever the app saves.
+- **Automatic goal contributions** — a goal can save a fixed amount every month by itself.
+
+Unlocking is a single switch (`settings.premium`) resolved through `isUnlocked()` in
+`src/utils/premium.ts`. Today it flips via an unlock code redeemed in Settings; a store
+in-app purchase (Google Play Billing / Apple IAP, required by store policy for digital
+goods) plugs into the same function without touching any call site.
 - **Categories** — every expense gets a category (10 built-in + your own custom ones).
 - **Recurring entries** — set an entry to repeat weekly, bi-weekly, or monthly (rent, salary, subscriptions); future occurrences are added automatically.
 - **Editing** — tap any entry to edit it, pick any past date when adding.

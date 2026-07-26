@@ -21,9 +21,12 @@ import {
 import { emptyState, loadState, saveState } from '../storage';
 import { allCategories, OTHER_CATEGORY_ID } from '../categories';
 import { makeId, setActiveCurrency } from '../utils/money';
-import { applyRecurring } from '../utils/recurring';
+import { catchUp } from '../utils/catchup';
 import { dueBudgetAlerts, pruneAlertLog, sendBudgetNotifications } from '../utils/alerts';
 import { reconcileReceipts } from '../utils/receipts';
+import { syncSettleReminder } from '../utils/reminders';
+import { isUnlocked, PremiumFeature } from '../utils/premium';
+import { refreshWidget } from '../utils/widget';
 import {
   darkColors,
   lightColors,
@@ -62,9 +65,15 @@ interface AppContextValue {
   setCurrencyCode: (code: string) => void;
   setAppLock: (enabled: boolean) => void;
   setBudgetAlerts: (enabled: boolean) => void;
+  setSettleReminder: (enabled: boolean) => void;
+  setPremium: (unlocked: boolean) => void;
   completeOnboarding: () => void;
   /** Replace the whole state (used by backup import) */
   replaceState: (next: AppState) => void;
+  /** Last deleted entry, offered for undo by the snackbar */
+  undoableTransaction: Transaction | null;
+  undoRemoveTransaction: () => void;
+  dismissUndo: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -72,6 +81,7 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AppState>(emptyState);
   const [loaded, setLoaded] = useState(false);
+  const [undoableTransaction, setUndoableTransaction] = useState<Transaction | null>(null);
   const loadedRef = useRef(false);
 
   useEffect(() => {
@@ -85,18 +95,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  // Catch up on recurring entries when the app returns to the foreground
+  // Advance recurring entries and goal auto-contributions when the app
+  // returns to the foreground
   useEffect(() => {
     const sub = RNAppState.addEventListener('change', (status) => {
-      if (status === 'active' && loadedRef.current) {
-        setState((s) => applyRecurring(s));
-      }
+      if (status === 'active' && loadedRef.current) setState(catchUp);
     });
     return () => sub.remove();
   }, []);
 
+  // Keep the monthly settle-up reminder scheduled (re-armed on every launch).
+  // Reminders only make sense with people to settle with, and the toggle is
+  // hidden below that threshold — so the scheduler reads the same predicate.
+  const wantsSettleReminder =
+    state.settings.settleReminder && state.people.length > 1;
   useEffect(() => {
-    if (loadedRef.current) saveState(state);
+    if (loaded) syncSettleReminder(wantsSettleReminder);
+  }, [loaded, wantsSettleReminder]);
+
+  useEffect(() => {
+    if (!loadedRef.current) return;
+    saveState(state);
+    // The home-screen widget reads stored state, so refresh it whenever the
+    // app writes — otherwise it lags behind by up to Android's update period.
+    refreshWidget(state);
   }, [state]);
 
   // Fire budget notifications when a category crosses 85% / 100% of its
@@ -183,13 +205,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   // Any photo file the removed entry referenced is cleaned up by the
-  // reconcileReceipts sweep on next launch.
+  // reconcileReceipts sweep on next launch. The removed entry is kept
+  // around briefly so the undo snackbar can restore it.
   const removeTransaction = useCallback((id: string) => {
+    const removed = stateRef.current.transactions.find((t) => t.id === id) ?? null;
+    setUndoableTransaction(removed);
     setState((s) => ({
       ...s,
       transactions: s.transactions.filter((t) => t.id !== id),
     }));
   }, []);
+
+  const undoRemoveTransaction = useCallback(() => {
+    const removed = undoableTransaction;
+    if (!removed) return;
+    setUndoableTransaction(null);
+    setState((s) => ({ ...s, transactions: [removed, ...s.transactions] }));
+  }, [undoableTransaction]);
+
+  const dismissUndo = useCallback(() => setUndoableTransaction(null), []);
 
   const addRecurring = useCallback(
     (rule: Omit<RecurringRule, 'id' | 'lastAppliedDate'>) => {
@@ -199,7 +233,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         photoUri?: string;
       };
       setState((s) =>
-        applyRecurring({
+        catchUp({
           ...s,
           recurring: [...s.recurring, { ...clean, id: makeId() }],
         }),
@@ -283,11 +317,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
+  // applyGoalAutos stamps lastAutoMonth on first sight, so auto
+  // contributions start the month after the goal is created.
   const addGoal = useCallback((goal: Omit<Goal, 'id' | 'savedCents'>) => {
-    setState((s) => ({
-      ...s,
-      goals: [...s.goals, { ...goal, id: makeId(), savedCents: 0 }],
-    }));
+    setState((s) =>
+      catchUp({
+        ...s,
+        goals: [...s.goals, { ...goal, id: makeId(), savedCents: 0 }],
+      }),
+    );
   }, []);
 
   const removeGoal = useCallback((id: string) => {
@@ -317,6 +355,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const setBudgetAlerts = useCallback((enabled: boolean) => {
     setState((s) => ({ ...s, settings: { ...s.settings, budgetAlerts: enabled } }));
+  }, []);
+
+  const setSettleReminder = useCallback((enabled: boolean) => {
+    setState((s) => ({ ...s, settings: { ...s.settings, settleReminder: enabled } }));
+  }, []);
+
+  const setPremium = useCallback((unlocked: boolean) => {
+    setState((s) => ({ ...s, settings: { ...s.settings, premium: unlocked } }));
   }, []);
 
   const completeOnboarding = useCallback(() => {
@@ -355,8 +401,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setCurrencyCode,
         setAppLock,
         setBudgetAlerts,
+        setSettleReminder,
+        setPremium,
         completeOnboarding,
         replaceState,
+        undoableTransaction,
+        undoRemoveTransaction,
+        dismissUndo,
       }}
     >
       {children}
@@ -401,6 +452,12 @@ export function useCategories(): { all: Category[]; byId: (id?: string) => Categ
     const other = map.get(OTHER_CATEGORY_ID)!;
     return { all, byId: (id?: string) => (id && map.get(id)) || other };
   }, [state.customCategories]);
+}
+
+/** Whether a Budget Pro feature is available to this user */
+export function usePremium(feature: PremiumFeature): boolean {
+  const { state } = useApp();
+  return isUnlocked(state.settings, feature);
 }
 
 /** Memoized person lookup by id */

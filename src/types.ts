@@ -92,7 +92,7 @@ export interface SettlementRecord {
   settledAt?: string;
 }
 
-/** A savings goal with manual contributions */
+/** A savings goal with manual and optional automatic contributions */
 export interface Goal {
   id: string;
   name: string;
@@ -100,6 +100,10 @@ export interface Goal {
   savedCents: number;
   /** Optional target month (yyyy-mm) */
   deadline?: string;
+  /** Premium: contribute this amount automatically every month */
+  monthlyAutoCents?: number;
+  /** Last month (yyyy-mm) an automatic contribution was applied */
+  lastAutoMonth?: string;
 }
 
 export interface AppSettings {
@@ -112,6 +116,10 @@ export interface AppSettings {
   appLock: boolean;
   /** Notify when a category budget is nearly or fully spent */
   budgetAlerts: boolean;
+  /** Monthly reminder to settle up shared expenses */
+  settleReminder: boolean;
+  /** One-time Budget Pro purchase / unlock */
+  premium: boolean;
 }
 
 /** Alert level already sent for a "yyyy-mm:categoryId" key, to avoid repeats */

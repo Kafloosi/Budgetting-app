@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, Person, SettlementRecord } from './types';
-import { applyRecurring } from './utils/recurring';
+import { catchUp } from './utils/catchup';
 import { todayIso } from './utils/money';
 import { categoryById } from './categories';
 
@@ -23,6 +23,8 @@ export const emptyState: AppState = {
     currencyCode: 'EUR',
     appLock: false,
     budgetAlerts: false,
+    settleReminder: false,
+    premium: false,
   },
 };
 
@@ -59,27 +61,34 @@ function migrate(parsed: Partial<AppState>): AppState {
       currencyCode: parsed.settings?.currencyCode ?? 'EUR',
       appLock: parsed.settings?.appLock ?? false,
       budgetAlerts: parsed.settings?.budgetAlerts ?? false,
+      settleReminder: parsed.settings?.settleReminder ?? false,
+      premium: parsed.settings?.premium ?? false,
     },
   };
 }
 
-/**
- * The single definition of a fully usable AppState: schema-migrated and
- * caught up on recurring entries. Every external source of state (disk,
- * imported backups) goes through this.
- */
-function normalize(parsed: Partial<AppState>): AppState {
-  return applyRecurring(migrate(parsed));
-}
-
-export async function loadState(): Promise<AppState> {
+async function readStoredState(): Promise<AppState> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (!raw) return emptyState;
-    return normalize(JSON.parse(raw) as Partial<AppState>);
+    return migrate(JSON.parse(raw) as Partial<AppState>);
   } catch {
     return emptyState;
   }
+}
+
+/**
+ * Read state exactly as stored (schema-migrated only). For consumers that
+ * cannot write back — notably the headless widget task — since advancing the
+ * clock without persisting it would make surfaces disagree.
+ */
+export async function readState(): Promise<AppState> {
+  return readStoredState();
+}
+
+/** Read state and advance it to now. Used by the app, which persists it. */
+export async function loadState(): Promise<AppState> {
+  return catchUp(await readStoredState());
 }
 
 export async function saveState(state: AppState): Promise<void> {
@@ -105,7 +114,7 @@ export function serializeBackup(state: AppState): string {
   );
 }
 
-/** Parse backup text into a normalized AppState. Returns null when invalid. */
+/** Parse backup text into a caught-up AppState. Returns null when invalid. */
 export function parseBackup(text: string): AppState | null {
   try {
     const parsed = JSON.parse(text);
@@ -114,7 +123,7 @@ export function parseBackup(text: string): AppState | null {
     if (!Array.isArray(raw?.people) || !Array.isArray(raw?.transactions)) {
       return null;
     }
-    return normalize(raw);
+    return catchUp(migrate(raw));
   } catch {
     return null;
   }

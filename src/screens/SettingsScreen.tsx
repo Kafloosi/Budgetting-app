@@ -12,7 +12,13 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { useApp, useCategories, usePeopleById, useTheme } from '../context/AppContext';
+import {
+  useApp,
+  useCategories,
+  usePeopleById,
+  usePremium,
+  useTheme,
+} from '../context/AppContext';
 import { font, radius, scale, spacing, ThemeColors, ThemeMode } from '../theme';
 import {
   centsToInput,
@@ -24,8 +30,13 @@ import {
   parseAmountToCents,
   shiftMonth,
 } from '../utils/money';
-import { ensureNotificationPermission } from '../utils/alerts';
+import { ensureNotificationPermission } from '../utils/notifications';
 import { goalProgress } from '../utils/goals';
+import {
+  PREMIUM_PRICE_LABEL,
+  PREMIUM_SELLING_POINTS,
+  validateUnlockCode,
+} from '../utils/premium';
 import { DEFAULT_CATEGORIES } from '../categories';
 import {
   Card,
@@ -113,6 +124,8 @@ export default function SettingsScreen() {
     setBudget,
     setAppLock,
     setBudgetAlerts,
+    setSettleReminder,
+    setPremium,
     addGoal,
     removeGoal,
     replaceState,
@@ -128,6 +141,10 @@ export default function SettingsScreen() {
   const [goalName, setGoalName] = useState('');
   const [goalTarget, setGoalTarget] = useState('');
   const [goalDeadline, setGoalDeadline] = useState<string | undefined>();
+  const [goalAuto, setGoalAuto] = useState('');
+  const [unlockCode, setUnlockCode] = useState('');
+
+  const premium = usePremium('goalAutos');
 
   const submitGoal = () => {
     const name = goalName.trim();
@@ -136,26 +153,63 @@ export default function SettingsScreen() {
       Alert.alert('Missing details', 'Enter a goal name and a target amount like 3000.');
       return;
     }
-    addGoal({ name, targetCents, deadline: goalDeadline });
+    let monthlyAutoCents: number | undefined;
+    if (premium && goalAuto.trim() !== '') {
+      const parsed = parseAmountToCents(goalAuto);
+      if (parsed === null) {
+        Alert.alert('Invalid amount', 'Enter a monthly auto-save amount like 100, or leave it empty.');
+        return;
+      }
+      monthlyAutoCents = parsed;
+    }
+    addGoal({ name, targetCents, deadline: goalDeadline, monthlyAutoCents });
     setGoalName('');
     setGoalTarget('');
     setGoalDeadline(undefined);
+    setGoalAuto('');
   };
 
-  const toggleBudgetAlerts = async (enabled: boolean) => {
+  const redeemCode = () => {
+    if (validateUnlockCode(unlockCode)) {
+      setPremium(true);
+      setUnlockCode('');
+      Alert.alert('Budget Pro unlocked 🎉', 'All premium features are now available.');
+    } else {
+      Alert.alert('Invalid code', 'That unlock code is not valid.');
+    }
+  };
+
+  const buyPremium = () => {
+    Alert.alert(
+      `Budget Pro — ${PREMIUM_PRICE_LABEL} one-time`,
+      'In-app purchases become available once the app is published in the Play Store / App Store. Until then, Budget Pro can be unlocked with a code.',
+    );
+  };
+
+  /** Notification toggles need permission before they can be switched on */
+  const toggleNotification = async (
+    enabled: boolean,
+    apply: (value: boolean) => void,
+  ) => {
     if (!enabled) {
-      setBudgetAlerts(false);
+      apply(false);
       return;
     }
     if (await ensureNotificationPermission()) {
-      setBudgetAlerts(true);
+      apply(true);
     } else {
       Alert.alert(
         'Notifications blocked',
-        'Allow notifications for this app in your phone settings to get budget alerts.',
+        'Allow notifications for this app in your phone settings to get reminders.',
       );
     }
   };
+
+  const toggleBudgetAlerts = (enabled: boolean) =>
+    toggleNotification(enabled, setBudgetAlerts);
+
+  const toggleSettleReminder = (enabled: boolean) =>
+    toggleNotification(enabled, setSettleReminder);
 
   const confirmRemovePerson = (person: Person) => {
     Alert.alert(
@@ -263,6 +317,53 @@ export default function SettingsScreen() {
       keyboardShouldPersistTaps="handled"
     >
       <ScreenTitle title="Settings" subtitle="People, budgets, and app options" />
+
+      <Card style={premium ? styles.proCardActive : styles.proCard}>
+        <Row style={{ justifyContent: 'space-between', marginBottom: spacing.s }}>
+          <Text style={styles.proTitle}>
+            {premium ? '⭐ Budget Pro' : 'Budget Pro'}
+          </Text>
+          {premium ? (
+            <Text style={styles.proActive}>Unlocked</Text>
+          ) : (
+            <Text style={styles.proPrice}>{PREMIUM_PRICE_LABEL} once</Text>
+          )}
+        </Row>
+        {premium ? (
+          <Text style={styles.mutedSmall}>
+            Thanks for supporting the app — all premium features are active.
+          </Text>
+        ) : (
+          <>
+            {PREMIUM_SELLING_POINTS.map((point) => (
+              <Text key={point} style={styles.proFeature}>
+                {point}
+              </Text>
+            ))}
+            <PrimaryButton
+              label={`Unlock for ${PREMIUM_PRICE_LABEL}`}
+              onPress={buyPremium}
+              style={{ marginTop: spacing.m }}
+            />
+            <Row style={{ marginTop: spacing.m }}>
+              <Input
+                style={{ flex: 1, marginRight: spacing.s }}
+                value={unlockCode}
+                onChangeText={setUnlockCode}
+                placeholder="Have an unlock code?"
+                autoCapitalize="characters"
+                onSubmitEditing={redeemCode}
+                returnKeyType="done"
+              />
+              <PrimaryButton
+                label="Redeem"
+                onPress={redeemCode}
+                style={{ paddingHorizontal: spacing.l, paddingVertical: scale(11) }}
+              />
+            </Row>
+          </>
+        )}
+      </Card>
 
       <Label>People</Label>
       {state.people.length === 0 ? (
@@ -379,6 +480,9 @@ export default function SettingsScreen() {
               <Text style={styles.mutedSmall}>
                 {formatCents(goal.savedCents)} of {formatCents(goal.targetCents)}
                 {goal.deadline ? ` · by ${formatMonth(goal.deadline)}` : ''}
+                {goal.monthlyAutoCents
+                  ? ` · auto ${formatCents(goal.monthlyAutoCents)}/month`
+                  : ''}
               </Text>
             </View>
             <Pressable onPress={() => removeGoal(goal.id)} hitSlop={8}>
@@ -422,6 +526,19 @@ export default function SettingsScreen() {
           >
             <Text style={styles.link}>+ Set a target month (optional)</Text>
           </Pressable>
+        )}
+        {premium ? (
+          <Input
+            style={{ marginBottom: spacing.m }}
+            value={goalAuto}
+            onChangeText={setGoalAuto}
+            placeholder="Auto-save per month, e.g. 100 (optional)"
+            keyboardType="decimal-pad"
+          />
+        ) : (
+          <Text style={[styles.mutedSmall, { marginBottom: spacing.m }]}>
+            🔒 Automatic monthly contributions are part of Budget Pro.
+          </Text>
         )}
         <PrimaryButton label="Add goal" onPress={submitGoal} />
         <Text style={[styles.mutedSmall, { marginTop: spacing.s }]}>
@@ -499,6 +616,23 @@ export default function SettingsScreen() {
             thumbColor={colors.white}
           />
         </Row>
+        {state.people.length > 1 ? (
+          <Row style={styles.settingDivider}>
+            <View style={{ flex: 1, paddingRight: spacing.m }}>
+              <Text style={styles.rowTitle}>Settle-up reminder</Text>
+              <Text style={styles.mutedSmall}>
+                A reminder on the 1st of each month to settle last month's shared
+                expenses.
+              </Text>
+            </View>
+            <Switch
+              value={state.settings.settleReminder}
+              onValueChange={toggleSettleReminder}
+              trackColor={{ true: colors.primary, false: colors.border }}
+              thumbColor={colors.white}
+            />
+          </Row>
+        ) : null}
       </Card>
 
       <Label>Security</Label>
@@ -631,5 +765,39 @@ const makeStyles = (colors: ThemeColors) =>
     catNameInput: {
       flex: 1,
       marginRight: spacing.s,
+    },
+    settingDivider: {
+      marginTop: spacing.l,
+      paddingTop: spacing.l,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+    },
+    proCard: {
+      backgroundColor: colors.primarySoft,
+      borderColor: colors.primary,
+    },
+    proCardActive: {
+      backgroundColor: colors.incomeSoft,
+      borderColor: colors.income,
+    },
+    proTitle: {
+      fontSize: font.medium,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    proPrice: {
+      fontSize: font.body,
+      fontWeight: '700',
+      color: colors.primary,
+    },
+    proActive: {
+      fontSize: font.body,
+      fontWeight: '700',
+      color: colors.income,
+    },
+    proFeature: {
+      fontSize: font.body,
+      color: colors.text,
+      marginBottom: spacing.xs,
     },
   });

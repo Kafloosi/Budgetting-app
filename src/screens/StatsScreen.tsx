@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useApp, useCategories, useTheme } from '../context/AppContext';
+import { useApp, useCategories, usePremium, useTheme } from '../context/AppContext';
 import { font, radius, scale, spacing, ThemeColors } from '../theme';
 import {
   currentPeriodKey,
@@ -9,11 +9,12 @@ import {
   formatPeriod,
   monthKey,
   parseAmountToCents,
-  periodOfDate,
   shiftMonth,
 } from '../utils/money';
+import { rankedCategorySpending } from '../utils/aggregate';
 import { goalProgress } from '../utils/goals';
 import { NEAR_THRESHOLD } from '../utils/alerts';
+import { computeInsights } from '../utils/insights';
 import {
   Card,
   EmptyState,
@@ -98,9 +99,7 @@ export default function StatsScreen() {
     setPeriod(currentPeriodKey(v));
   };
 
-  // One pass over all transactions: per-month income/expense buckets for the
-  // trend chart, and per-category expense totals for the selected period.
-  const { trend, byCategory } = useMemo(() => {
+  const trend = useMemo(() => {
     const trendMonths =
       view === 'month'
         ? Array.from({ length: TREND_MONTHS }, (_, i) =>
@@ -110,30 +109,31 @@ export default function StatsScreen() {
     const buckets = new Map(
       trendMonths.map((m) => [m, { month: m, income: 0, expense: 0 }]),
     );
-    const categoryTotals = new Map<string, number>();
-
     for (const t of state.transactions) {
       const bucket = buckets.get(monthKey(t.date));
       if (bucket) bucket[t.type] += t.amountCents;
-      if (t.type === 'expense' && periodOfDate(view, t.date) === period) {
-        const id = categoryById(t.categoryId).id;
-        categoryTotals.set(id, (categoryTotals.get(id) ?? 0) + t.amountCents);
-      }
     }
+    return trendMonths.map((m) => buckets.get(m)!);
+  }, [state.transactions, view, period]);
 
-    return {
-      trend: trendMonths.map((m) => buckets.get(m)!),
-      byCategory: [...categoryTotals.entries()]
-        .map(([id, cents]) => ({ category: categoryById(id), cents }))
-        .sort((a, b) => b.cents - a.cents),
-    };
-  }, [state.transactions, view, period, categoryById]);
+  const byCategory = useMemo(
+    () => rankedCategorySpending(state.transactions, state.customCategories, view, period),
+    [state.transactions, state.customCategories, view, period],
+  );
 
   const trendMax = Math.max(1, ...trend.flatMap((t) => [t.income, t.expense]));
   const periodExpenseTotal = byCategory.reduce((s, e) => s + e.cents, 0);
   const periodLabel = formatPeriod(view, period);
   const barLabel = (m: string) => formatMonth(m).slice(0, view === 'month' ? 3 : 1);
   const barBase = [styles.bar, view === 'year' && styles.barNarrow];
+
+  // The card is only rendered in month view, so the gate lives there
+  const premium = usePremium('insights');
+  const insights = useMemo(
+    () =>
+      premium ? computeInsights(state.transactions, state.customCategories, period) : [],
+    [premium, state.transactions, state.customCategories, period],
+  );
 
   const budgetRows = useMemo(
     () =>
@@ -233,6 +233,28 @@ export default function StatsScreen() {
               <Text style={styles.legendText}>Expenses</Text>
             </Row>
           </Card>
+
+          {view === 'month' ? (
+            <Card>
+              <Label>Insights</Label>
+              {!premium ? (
+                <Text style={styles.emptyText}>
+                  🔒 Smart monthly insights are part of Budget Pro — unlock it in
+                  the Settings tab.
+                </Text>
+              ) : insights.length === 0 ? (
+                <Text style={styles.emptyText}>
+                  Insights appear once this month has some expenses.
+                </Text>
+              ) : (
+                insights.map((insight, i) => (
+                  <Text key={i} style={styles.insight}>
+                    {insight.emoji}  {insight.text}
+                  </Text>
+                ))
+              )}
+            </Card>
+          ) : null}
 
           <Card>
             <Label>Spending by category · {periodLabel}</Label>
@@ -407,6 +429,12 @@ const makeStyles = (colors: ThemeColors) =>
     emptyText: {
       fontSize: font.body,
       color: colors.textSecondary,
+    },
+    insight: {
+      fontSize: font.body,
+      color: colors.text,
+      marginBottom: spacing.s,
+      lineHeight: font.body * 1.4,
     },
     catRow: {
       marginBottom: spacing.m,
