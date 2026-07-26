@@ -27,7 +27,8 @@ A simple, phone-first budgeting app for one or more people. Built with **Expo / 
 
 Core budgeting, splitting, history, and backups are always free. Budget Pro adds:
 
-- **Insights** — plain-language monthly analysis (spend vs last month, top category, daily average, biggest expense, income left).
+- **Insights** — plain-language monthly analysis (spend vs last month, top category, biggest expense, income left).
+- **Forecast** — projects month-end spending from your pace so far, warns when you're heading past your income, and shows a safe daily amount for the rest of the month.
 - **Home-screen widget** — this month's balance on your Android home screen, refreshed whenever the app saves.
 - **Automatic goal contributions** — a goal can save a fixed amount every month by itself.
 
@@ -40,7 +41,7 @@ goods) plugs into the same function without touching any call site.
 - **Editing** — tap any entry to edit it, pick any past date when adding.
 - **Budgets** — monthly spending limits per category with progress bars and over-budget warnings.
 - **Stats** — income vs expenses over the last 6 months, spending by category, budget progress.
-- **Search & filters** — search entries by text or category, filter income/expenses.
+- **Search & filters** — search entries by text or category across **this month or all time**, filter income/expenses.
 - **Export / import** — JSON backup and CSV export via the share sheet; import a backup to move to a new phone.
 - **App lock** — optional fingerprint/face unlock via the phone's biometrics.
 - **Currency setting** — €, $, £, CHF, kr, zł and more (display symbol only).

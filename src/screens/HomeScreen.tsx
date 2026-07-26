@@ -12,7 +12,13 @@ import {
 } from 'react-native';
 import { useApp, useCategories, usePeopleById, useTheme } from '../context/AppContext';
 import { font, radius, scale, spacing, ThemeColors } from '../theme';
-import { currentMonthKey, formatCents, formatDate, monthKey } from '../utils/money';
+import {
+  currentMonthKey,
+  formatCents,
+  formatDate,
+  formatMonth,
+  monthKey,
+} from '../utils/money';
 import { monthTotals } from '../utils/aggregate';
 import {
   Card,
@@ -30,6 +36,11 @@ import { Transaction } from '../types';
 const COMBINED = 'combined';
 
 type TypeFilter = 'all' | 'income' | 'expense';
+type SearchScope = 'month' | 'all';
+
+/** Newest first. ISO dates compare bytewise, so no locale collation needed. */
+const byDateDesc = (a: Transaction, b: Transaction) =>
+  a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
 
 export default function HomeScreen() {
   const { state, removeTransaction, updateTransaction } = useApp();
@@ -40,6 +51,7 @@ export default function HomeScreen() {
   const [month, setMonth] = useState(currentMonthKey());
   const [selectedPerson, setSelectedPerson] = useState<string>(COMBINED);
   const [search, setSearch] = useState('');
+  const [searchScope, setSearchScope] = useState<SearchScope>('month');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [editing, setEditing] = useState<Transaction | null>(null);
 
@@ -47,24 +59,38 @@ export default function HomeScreen() {
   const activePersonId =
     !multiPerson && state.people.length === 1 ? state.people[0].id : selectedPerson;
 
-  const monthTransactions = useMemo(
+  // Unsorted: ISO dates sort bytewise, and only the slices actually shown
+  // need ordering — sorting all history on every save would be wasted work.
+  const forPerson = useMemo(
     () =>
-      state.transactions
-        .filter((t) => monthKey(t.date) === month)
-        .filter((t) => activePersonId === COMBINED || t.personId === activePersonId)
-        .sort((a, b) => b.date.localeCompare(a.date)),
-    [state.transactions, month, activePersonId],
+      state.transactions.filter(
+        (t) => activePersonId === COMBINED || t.personId === activePersonId,
+      ),
+    [state.transactions, activePersonId],
+  );
+
+  const monthTransactions = useMemo(
+    () => forPerson.filter((t) => monthKey(t.date) === month).sort(byDateDesc),
+    [forPerson, month],
   );
 
   // Totals ignore search/type filters so the summary always shows the month
   const { incomeCents, expenseCents, netCents } = useMemo(
-    () => monthTotals(monthTransactions, month),
-    [monthTransactions, month],
+    () => monthTotals(forPerson, month),
+    [forPerson, month],
   );
 
+  // Searching all time ignores the month, so an entry from any month is
+  // findable without paging back through the month navigator.
+  const searching = search.trim() !== '';
+  const allTimeSearch = searchScope === 'all';
+  const allTimeSorted = useMemo(
+    () => (allTimeSearch ? [...forPerson].sort(byDateDesc) : []),
+    [allTimeSearch, forPerson],
+  );
   const visibleTransactions = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return monthTransactions
+    return (allTimeSearch ? allTimeSorted : monthTransactions)
       .filter((t) => typeFilter === 'all' || t.type === typeFilter)
       .filter(
         (t) =>
@@ -72,7 +98,7 @@ export default function HomeScreen() {
           t.note.toLowerCase().includes(query) ||
           categoryById(t.categoryId).name.toLowerCase().includes(query),
       );
-  }, [monthTransactions, search, typeFilter, categoryById]);
+  }, [allTimeSearch, allTimeSorted, monthTransactions, search, typeFilter, categoryById]);
 
   const confirmDelete = (t: Transaction) => {
     Alert.alert('Delete entry', `Delete "${t.note || 'this entry'}"?`, [
@@ -117,7 +143,7 @@ export default function HomeScreen() {
                 </>
               ) : null}
               <Text style={styles.txMeta} numberOfLines={1}>
-                {formatDate(item.date)}
+                {formatDate(item.date, allTimeSearch)}
                 {!isIncome ? ` · ${category.name}` : ''}
                 {item.recurringId ? ' · ↻' : ''}
                 {item.photoUri ? ' · 📎' : ''}
@@ -209,16 +235,33 @@ export default function HomeScreen() {
               </Row>
             </Card>
 
-            {monthTransactions.length > 0 ? (
+            {forPerson.length > 0 ? (
               <>
                 <TextInput
                   style={styles.search}
                   value={search}
-                  onChangeText={setSearch}
+                  onChangeText={(value) => {
+                    setSearch(value);
+                    // Scope is only meaningful while searching; clearing the
+                    // query returns to the month so it can't apply invisibly.
+                    if (!value.trim()) setSearchScope('month');
+                  }}
                   placeholder="🔍  Search entries…"
                   placeholderTextColor={colors.textSecondary}
                   returnKeyType="search"
                 />
+                {searching ? (
+                  <View style={{ marginBottom: spacing.m }}>
+                    <SegmentedControl
+                      options={[
+                        { value: 'month', label: formatMonth(month) },
+                        { value: 'all', label: 'All time' },
+                      ]}
+                      value={searchScope}
+                      onChange={setSearchScope}
+                    />
+                  </View>
+                ) : null}
                 <View style={{ marginBottom: spacing.m }}>
                   <SegmentedControl
                     options={[
@@ -230,6 +273,12 @@ export default function HomeScreen() {
                     onChange={setTypeFilter}
                   />
                 </View>
+                {allTimeSearch ? (
+                  <Text style={styles.resultCount}>
+                    {visibleTransactions.length}{' '}
+                    {visibleTransactions.length === 1 ? 'match' : 'matches'} across all months
+                  </Text>
+                ) : null}
               </>
             ) : null}
           </>
@@ -240,8 +289,10 @@ export default function HomeScreen() {
             message={
               state.people.length === 0
                 ? 'Add a person in the Settings tab, then add your first income or expense.'
-                : monthTransactions.length > 0
-                  ? 'No entries match your search.'
+                : searching
+                  ? allTimeSearch
+                    ? 'Nothing matches your search in any month.'
+                    : 'No matches this month — try “All time”.'
                   : 'No entries this month yet. Tap + to add an income or expense.'
             }
           />
@@ -319,6 +370,11 @@ const makeStyles = (colors: ThemeColors) =>
     summaryValue: {
       fontSize: font.medium,
       fontWeight: '700',
+    },
+    resultCount: {
+      fontSize: font.small,
+      color: colors.textSecondary,
+      marginBottom: spacing.m,
     },
     search: {
       backgroundColor: colors.card,

@@ -15,6 +15,7 @@ import { rankedCategorySpending } from '../utils/aggregate';
 import { goalProgress } from '../utils/goals';
 import { NEAR_THRESHOLD } from '../utils/alerts';
 import { computeInsights } from '../utils/insights';
+import { Forecast, forecastCurrentMonth } from '../utils/forecast';
 import {
   Card,
   EmptyState,
@@ -84,6 +85,71 @@ function MeterRow({
   );
 }
 
+/** Consistent "this is a Pro feature" message for locked cards */
+function ProLock({ what, styles }: { what: string; styles: ReturnType<typeof makeStyles> }) {
+  return (
+    <Text style={styles.emptyText}>
+      🔒 {what} are part of Budget Pro — unlock it in the Settings tab.
+    </Text>
+  );
+}
+
+function ForecastBody({
+  forecast,
+  colors,
+  styles,
+}: {
+  forecast: Forecast;
+  colors: ThemeColors;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  if (!forecast.hasEnoughData) {
+    return (
+      <Text style={styles.emptyText}>
+        A forecast appears after a few days of spending this month.
+      </Text>
+    );
+  }
+  const hasIncome = forecast.incomeCents > 0;
+  const overspending = hasIncome && forecast.projectedOverspendCents > 0;
+  return (
+    <>
+      <MeterRow
+        label="Heading for"
+        right={formatCents(forecast.projectedCents)}
+        rightColor={overspending ? colors.expense : undefined}
+        ratio={forecast.spentCents / Math.max(1, forecast.projectedCents)}
+        barColor={overspending ? colors.expense : colors.primary}
+        styles={styles}
+      />
+      <Text style={styles.forecastLine}>
+        {formatCents(forecast.spentCents)} spent in {forecast.elapsedDays} of{' '}
+        {forecast.daysInMonth} days · {formatCents(forecast.dailyPaceCents)} per day
+      </Text>
+      {hasIncome ? (
+        <Text
+          style={[
+            styles.forecastLine,
+            { color: overspending ? colors.expense : colors.income },
+          ]}
+        >
+          {overspending
+            ? `⚠️ At this pace you'll overspend income by ${formatCents(forecast.projectedOverspendCents)}. Keep it under ${formatCents(forecast.safeDailyCents)} per day to stay even.`
+            : `✅ On track — you can spend ${formatCents(forecast.safeDailyCents)} per day and still stay within income.`}
+        </Text>
+      ) : null}
+      {forecast.budgetTotalCents > 0 ? (
+        <Text style={styles.forecastLine}>
+          Combined budgets: {formatCents(forecast.budgetTotalCents)} ·{' '}
+          {forecast.projectedCents > forecast.budgetTotalCents
+            ? `projected ${formatCents(forecast.projectedCents - forecast.budgetTotalCents)} over`
+            : 'projected to stay within'}
+        </Text>
+      ) : null}
+    </>
+  );
+}
+
 export default function StatsScreen() {
   const { state, addToGoal } = useApp();
   const { colors } = useTheme();
@@ -127,12 +193,23 @@ export default function StatsScreen() {
   const barLabel = (m: string) => formatMonth(m).slice(0, view === 'month' ? 3 : 1);
   const barBase = [styles.bar, view === 'year' && styles.barNarrow];
 
-  // The card is only rendered in month view, so the gate lives there
-  const premium = usePremium('insights');
+  // Both cards render in month view only, so the memos skip work in year view
+  const monthView = view === 'month';
+  const insightsPro = usePremium('insights');
+  const forecastPro = usePremium('forecast');
   const insights = useMemo(
     () =>
-      premium ? computeInsights(state.transactions, state.customCategories, period) : [],
-    [premium, state.transactions, state.customCategories, period],
+      insightsPro && monthView
+        ? computeInsights(state.transactions, state.customCategories, period)
+        : [],
+    [insightsPro, monthView, state.transactions, state.customCategories, period],
+  );
+  const forecast = useMemo(
+    () =>
+      forecastPro && monthView
+        ? forecastCurrentMonth(state.transactions, state.budgets)
+        : null,
+    [forecastPro, monthView, state.transactions, state.budgets],
   );
 
   const budgetRows = useMemo(
@@ -234,14 +311,22 @@ export default function StatsScreen() {
             </Row>
           </Card>
 
+          {view === 'month' && period === currentPeriodKey('month') ? (
+            <Card>
+              <Label>Forecast · rest of {periodLabel}</Label>
+              {forecast ? (
+                <ForecastBody forecast={forecast} colors={colors} styles={styles} />
+              ) : (
+                <ProLock what="Spending forecasts" styles={styles} />
+              )}
+            </Card>
+          ) : null}
+
           {view === 'month' ? (
             <Card>
               <Label>Insights</Label>
-              {!premium ? (
-                <Text style={styles.emptyText}>
-                  🔒 Smart monthly insights are part of Budget Pro — unlock it in
-                  the Settings tab.
-                </Text>
+              {!insightsPro ? (
+                <ProLock what="Smart monthly insights" styles={styles} />
               ) : insights.length === 0 ? (
                 <Text style={styles.emptyText}>
                   Insights appear once this month has some expenses.
@@ -435,6 +520,12 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.text,
       marginBottom: spacing.s,
       lineHeight: font.body * 1.4,
+    },
+    forecastLine: {
+      fontSize: font.small,
+      color: colors.textSecondary,
+      marginTop: spacing.s,
+      lineHeight: font.small * 1.4,
     },
     catRow: {
       marginBottom: spacing.m,

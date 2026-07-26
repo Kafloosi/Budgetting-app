@@ -35,6 +35,7 @@ import { goalProgress } from '../utils/goals';
 import {
   PREMIUM_PRICE_LABEL,
   PREMIUM_SELLING_POINTS,
+  restorePremium,
   validateUnlockCode,
 } from '../utils/premium';
 import { DEFAULT_CATEGORIES } from '../categories';
@@ -184,6 +185,34 @@ export default function SettingsScreen() {
       `Budget Pro — ${PREMIUM_PRICE_LABEL} one-time`,
       'In-app purchases become available once the app is published in the Play Store / App Store. Until then, Budget Pro can be unlocked with a code.',
     );
+  };
+
+  const [restoring, setRestoring] = useState(false);
+  const restore = async () => {
+    if (restoring) return;
+    setRestoring(true);
+    const outcome = await restorePremium();
+    setRestoring(false);
+    switch (outcome) {
+      case 'restored':
+        setPremium(true);
+        Alert.alert('Purchase restored 🎉', 'Budget Pro is active again.');
+        break;
+      case 'nothing-found':
+        Alert.alert('Nothing to restore', 'No previous Budget Pro purchase was found.');
+        break;
+      case 'error':
+        Alert.alert(
+          'Could not reach the store',
+          'Check your connection and try again.',
+        );
+        break;
+      default:
+        Alert.alert(
+          'Not available yet',
+          'Purchases restore automatically once the app is installed from the Play Store / App Store. On this build, re-enter your unlock code — or import a backup, since backups include your Pro unlock.',
+        );
+    }
   };
 
   /** Notification toggles need permission before they can be switched on */
@@ -361,6 +390,16 @@ export default function SettingsScreen() {
                 style={{ paddingHorizontal: spacing.l, paddingVertical: scale(11) }}
               />
             </Row>
+            <Pressable
+              onPress={restore}
+              disabled={restoring}
+              hitSlop={8}
+              style={{ marginTop: spacing.m }}
+            >
+              <Text style={[styles.link, { textAlign: 'center' }]}>
+                {restoring ? 'Checking…' : 'Already bought it? Restore purchase'}
+              </Text>
+            </Pressable>
           </>
         )}
       </Card>

@@ -196,6 +196,15 @@ export function daysInMonth(month: string): number {
   return new Date(Date.UTC(y, m, 0)).getUTCDate();
 }
 
+/**
+ * Days of a month that have actually happened — the day of month for the
+ * current month, the whole month for past ones. Anything dividing a month's
+ * spending by "days so far" must use this, so the figures agree everywhere.
+ */
+export function elapsedDaysInMonth(month: string): number {
+  return month === currentMonthKey() ? Number(todayIso().slice(8, 10)) : daysInMonth(month);
+}
+
 export function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -215,10 +224,10 @@ export function addMonthsClamped(isoDate: string, months: number): string {
   return firstOfTarget.toISOString().slice(0, 10);
 }
 
-export function formatDate(isoDate: string): string {
+export function formatDate(isoDate: string, withYear = false): string {
   const [y, m, d] = isoDate.split('-').map(Number);
   if (!y || !m || !d) return isoDate;
-  return `${d} ${MONTH_NAMES[m - 1].slice(0, 3)}`;
+  return `${d} ${MONTH_NAMES[m - 1].slice(0, 3)}${withYear ? ` ${y}` : ''}`;
 }
 
 export function makeId(): string {

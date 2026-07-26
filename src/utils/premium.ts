@@ -11,10 +11,11 @@ import { AppSettings } from '../types';
  */
 export const PREMIUM_PRICE_LABEL = '€10';
 
-export type PremiumFeature = 'insights' | 'widget' | 'goalAutos';
+export type PremiumFeature = 'insights' | 'forecast' | 'widget' | 'goalAutos';
 
 export const PREMIUM_FEATURES: Record<PremiumFeature, string> = {
   insights: '📈 Insights — smart monthly spending analysis',
+  forecast: '🔮 Forecast — see where the month is heading',
   widget: '📱 Home-screen widget with your live balance',
   goalAutos: '🎯 Automatic monthly goal contributions',
 };
@@ -37,6 +38,28 @@ export function isUnlocked(
   // Today Pro is all-or-nothing; the feature argument keeps call sites
   // honest so tiers or per-feature entitlements can land here alone.
   return settings.premium;
+}
+
+/**
+ * - restored:      a past purchase was found and Pro is active again
+ * - nothing-found: the store answered, but this account never bought it
+ * - error:         the store could not be reached (offline, service down)
+ * - unavailable:   this build has no billing client at all
+ */
+export type RestoreOutcome = 'restored' | 'nothing-found' | 'error' | 'unavailable';
+
+/**
+ * Ask the platform for a previous purchase. Store builds query the billing
+ * client here (Play Billing / StoreKit, via e.g. RevenueCat) and map its
+ * result — including failures — onto RestoreOutcome, so the UI never has to
+ * change when real purchases land.
+ *
+ * Sideloaded builds have no billing client, so this reports 'unavailable'
+ * and the UI points at the two paths that do work offline: re-entering the
+ * unlock code, or importing a backup (backups carry the unlock).
+ */
+export async function restorePremium(): Promise<RestoreOutcome> {
+  return 'unavailable';
 }
 
 /**

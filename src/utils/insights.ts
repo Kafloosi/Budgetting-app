@@ -1,15 +1,7 @@
 import { Category, Transaction } from '../types';
 import { categoryById } from '../categories';
 import { expenseCentsByCategory } from './aggregate';
-import {
-  currentMonthKey,
-  daysInMonth,
-  formatCents,
-  formatMonth,
-  monthKey,
-  shiftMonth,
-  todayIso,
-} from './money';
+import { formatCents, formatMonth, monthKey, shiftMonth } from './money';
 
 export interface Insight {
   emoji: string;
@@ -74,13 +66,7 @@ export function computeInsights(
     });
   }
 
-  // Only count days that have actually happened in the current month
-  const elapsed =
-    month === currentMonthKey() ? Number(todayIso().slice(8, 10)) : daysInMonth(month);
-  insights.push({
-    emoji: '☀️',
-    text: `Average spend: ${formatCents(Math.round(spent / elapsed))} per day.`,
-  });
+  // Daily pace deliberately lives in the Forecast card, not here
 
   if (biggest) {
     insights.push({
