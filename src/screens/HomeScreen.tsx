@@ -8,23 +8,23 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useApp } from '../context/AppContext';
-import { colors, font, radius, scale, spacing } from '../theme';
+import { useApp, useTheme } from '../context/AppContext';
+import { font, radius, scale, spacing, ThemeColors } from '../theme';
 import {
   currentMonthKey,
   formatCents,
   formatDate,
-  formatMonth,
   monthKey,
-  shiftMonth,
 } from '../utils/money';
-import { Card, Chip, EmptyState, Row } from '../components/ui';
+import { Card, Chip, EmptyState, PeriodNav, Row } from '../components/ui';
 import { Transaction } from '../types';
 
 const COMBINED = 'combined';
 
 export default function HomeScreen() {
   const { state, removeTransaction } = useApp();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [month, setMonth] = useState(currentMonthKey());
   const [selectedPerson, setSelectedPerson] = useState<string>(COMBINED);
 
@@ -73,7 +73,9 @@ export default function HomeScreen() {
               { backgroundColor: isIncome ? colors.incomeSoft : colors.expenseSoft },
             ]}
           >
-            <Text style={{ fontSize: font.medium }}>{isIncome ? '↑' : '↓'}</Text>
+            <Text style={{ fontSize: font.medium, color: colors.text }}>
+              {isIncome ? '↑' : '↓'}
+            </Text>
           </View>
           <View style={{ flex: 1, marginHorizontal: spacing.m }}>
             <Text style={styles.txNote} numberOfLines={1}>
@@ -119,15 +121,7 @@ export default function HomeScreen() {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <>
-            <Row style={styles.monthRow}>
-              <Pressable style={styles.monthArrow} onPress={() => setMonth(shiftMonth(month, -1))}>
-                <Text style={styles.monthArrowText}>‹</Text>
-              </Pressable>
-              <Text style={styles.monthLabel}>{formatMonth(month)}</Text>
-              <Pressable style={styles.monthArrow} onPress={() => setMonth(shiftMonth(month, 1))}>
-                <Text style={styles.monthArrowText}>›</Text>
-              </Pressable>
-            </Row>
+            <PeriodNav periodType="month" period={month} onChange={setMonth} />
 
             {multiPerson ? (
               <ScrollView
@@ -203,104 +197,81 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  listContent: {
-    padding: spacing.l,
-    paddingBottom: scale(100),
-  },
-  monthRow: {
-    justifyContent: 'space-between',
-    marginBottom: spacing.l,
-  },
-  monthArrow: {
-    width: scale(40),
-    height: scale(40),
-    borderRadius: radius.m,
-    backgroundColor: colors.card,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  monthArrowText: {
-    fontSize: font.large,
-    color: colors.text,
-    lineHeight: font.large + 2,
-  },
-  monthLabel: {
-    fontSize: font.large,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  summaryCard: {
-    alignItems: 'center',
-    paddingVertical: spacing.xl,
-  },
-  summaryLabel: {
-    fontSize: font.small,
-    color: colors.textSecondary,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  summaryNet: {
-    fontSize: font.huge,
-    fontWeight: '800',
-    marginTop: spacing.s,
-  },
-  summaryHalf: { flex: 1, alignItems: 'center' },
-  summaryDivider: {
-    width: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
-    alignSelf: 'stretch',
-  },
-  summarySubLabel: {
-    fontSize: font.small,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-  },
-  summaryValue: {
-    fontSize: font.medium,
-    fontWeight: '700',
-  },
-  sectionTitle: {
-    fontSize: font.medium,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: spacing.m,
-    marginTop: spacing.s,
-  },
-  txCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.m,
-  },
-  txIcon: {
-    width: scale(38),
-    height: scale(38),
-    borderRadius: radius.m,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  txNote: {
-    fontSize: font.body,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 2,
-  },
-  txMeta: {
-    fontSize: font.small,
-    color: colors.textSecondary,
-  },
-  dot: {
-    width: scale(8),
-    height: scale(8),
-    borderRadius: scale(4),
-    marginRight: spacing.xs,
-  },
-  txAmount: {
-    fontSize: font.body,
-    fontWeight: '700',
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    listContent: {
+      padding: spacing.l,
+      paddingBottom: scale(100),
+    },
+    summaryCard: {
+      alignItems: 'center',
+      paddingVertical: spacing.xl,
+    },
+    summaryLabel: {
+      fontSize: font.small,
+      color: colors.textSecondary,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      letterSpacing: 0.6,
+    },
+    summaryNet: {
+      fontSize: font.huge,
+      fontWeight: '800',
+      marginTop: spacing.s,
+    },
+    summaryHalf: { flex: 1, alignItems: 'center' },
+    summaryDivider: {
+      width: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
+      alignSelf: 'stretch',
+    },
+    summarySubLabel: {
+      fontSize: font.small,
+      color: colors.textSecondary,
+      marginBottom: spacing.xs,
+    },
+    summaryValue: {
+      fontSize: font.medium,
+      fontWeight: '700',
+    },
+    sectionTitle: {
+      fontSize: font.medium,
+      fontWeight: '700',
+      color: colors.text,
+      marginBottom: spacing.m,
+      marginTop: spacing.s,
+    },
+    txCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.m,
+    },
+    txIcon: {
+      width: scale(38),
+      height: scale(38),
+      borderRadius: radius.m,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    txNote: {
+      fontSize: font.body,
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 2,
+    },
+    txMeta: {
+      fontSize: font.small,
+      color: colors.textSecondary,
+    },
+    dot: {
+      width: scale(8),
+      height: scale(8),
+      borderRadius: scale(4),
+      marginRight: spacing.xs,
+    },
+    txAmount: {
+      fontSize: font.body,
+      fontWeight: '700',
+    },
+  });

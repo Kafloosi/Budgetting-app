@@ -1,10 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Alert, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
-import { useApp } from '../context/AppContext';
-import { colors, font, radius, spacing, scale } from '../theme';
-import { formatCents, formatMonth } from '../utils/money';
-import { Card, EmptyState, Row, ScreenTitle } from '../components/ui';
-import { SettlementRecord, SplitMethod } from '../types';
+import { useApp, useTheme } from '../context/AppContext';
+import { font, radius, spacing, scale, ThemeColors } from '../theme';
+import { formatCents, formatPeriod } from '../utils/money';
+import { Card, EmptyState, Row, ScreenTitle, SegmentedControl } from '../components/ui';
+import { PeriodType, SettlementRecord, SplitMethod } from '../types';
 
 const METHOD_LABEL: Record<SplitMethod, string> = {
   'fifty-fifty': '50/50',
@@ -14,21 +14,25 @@ const METHOD_LABEL: Record<SplitMethod, string> = {
 
 export default function HistoryScreen() {
   const { state, removeSettlement } = useApp();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const [view, setView] = useState<PeriodType>('month');
 
   const sections = useMemo(() => {
-    const byMonth = new Map<string, SettlementRecord[]>();
-    for (const record of state.settlements) {
-      const list = byMonth.get(record.month) ?? [];
+    const records = state.settlements.filter((r) => r.periodType === view);
+    const byPeriod = new Map<string, SettlementRecord[]>();
+    for (const record of records) {
+      const list = byPeriod.get(record.period) ?? [];
       list.push(record);
-      byMonth.set(record.month, list);
+      byPeriod.set(record.period, list);
     }
-    return [...byMonth.entries()]
-      .sort((a, b) => b[0].localeCompare(a[0])) // latest month first
-      .map(([month, records]) => ({
-        title: formatMonth(month),
-        data: records.sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    return [...byPeriod.entries()]
+      .sort((a, b) => b[0].localeCompare(a[0])) // latest period first
+      .map(([period, list]) => ({
+        title: formatPeriod(view, period),
+        data: list.sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
       }));
-  }, [state.settlements]);
+  }, [state.settlements, view]);
 
   const confirmDelete = (record: SettlementRecord) => {
     Alert.alert('Delete calculation', 'Remove this calculation from history?', [
@@ -45,10 +49,22 @@ export default function HistoryScreen() {
         contentContainerStyle={styles.content}
         stickySectionHeadersEnabled={false}
         ListHeaderComponent={
-          <ScreenTitle
-            title="History"
-            subtitle="Saved split calculations, latest month first"
-          />
+          <>
+            <ScreenTitle
+              title="History"
+              subtitle="Saved split calculations, latest first"
+            />
+            <View style={{ marginBottom: spacing.l }}>
+              <SegmentedControl
+                options={[
+                  { value: 'month', label: 'Monthly' },
+                  { value: 'week', label: 'Weekly' },
+                ]}
+                value={view}
+                onChange={setView}
+              />
+            </View>
+          </>
         }
         renderSectionHeader={({ section }) => (
           <Text style={styles.sectionHeader}>{section.title}</Text>
@@ -84,7 +100,11 @@ export default function HistoryScreen() {
         ListEmptyComponent={
           <EmptyState
             icon="📒"
-            message="No saved calculations yet. Settle a month in the Split tab and save it to see it here."
+            message={
+              view === 'month'
+                ? 'No saved monthly calculations yet. Settle a month in the Split tab and save it to see it here.'
+                : 'No saved weekly calculations yet. Switch the Split tab to “Week”, settle up, and save it to see it here.'
+            }
           />
         }
       />
@@ -92,31 +112,32 @@ export default function HistoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.l, paddingBottom: scale(100) },
-  sectionHeader: {
-    fontSize: font.medium,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: spacing.m,
-    marginTop: spacing.s,
-  },
-  methodBadge: {
-    backgroundColor: colors.primarySoft,
-    borderRadius: radius.xl,
-    paddingHorizontal: spacing.m,
-    paddingVertical: scale(4),
-  },
-  methodBadgeText: {
-    color: colors.primary,
-    fontSize: font.small,
-    fontWeight: '700',
-  },
-  total: { fontSize: font.medium, fontWeight: '800', color: colors.text },
-  resultRow: { justifyContent: 'space-between', marginTop: spacing.xs },
-  resultName: { fontSize: font.body, fontWeight: '600', color: colors.text },
-  resultDetail: { fontSize: font.small, color: colors.textSecondary },
-  transfer: { fontSize: font.body, color: colors.primary, marginTop: spacing.s, fontWeight: '600' },
-  savedAt: { fontSize: font.small, color: colors.textSecondary, marginTop: spacing.m },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    content: { padding: spacing.l, paddingBottom: scale(100) },
+    sectionHeader: {
+      fontSize: font.medium,
+      fontWeight: '700',
+      color: colors.text,
+      marginBottom: spacing.m,
+      marginTop: spacing.s,
+    },
+    methodBadge: {
+      backgroundColor: colors.primarySoft,
+      borderRadius: radius.xl,
+      paddingHorizontal: spacing.m,
+      paddingVertical: scale(4),
+    },
+    methodBadgeText: {
+      color: colors.primary,
+      fontSize: font.small,
+      fontWeight: '700',
+    },
+    total: { fontSize: font.medium, fontWeight: '800', color: colors.text },
+    resultRow: { justifyContent: 'space-between', marginTop: spacing.xs },
+    resultName: { fontSize: font.body, fontWeight: '600', color: colors.text },
+    resultDetail: { fontSize: font.small, color: colors.textSecondary },
+    transfer: { fontSize: font.body, color: colors.primary, marginTop: spacing.s, fontWeight: '600' },
+    savedAt: { fontSize: font.small, color: colors.textSecondary, marginTop: spacing.m },
+  });

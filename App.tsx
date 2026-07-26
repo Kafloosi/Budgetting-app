@@ -1,19 +1,22 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AppProvider, useApp } from './src/context/AppContext';
+import { AppProvider, useApp, useTheme } from './src/context/AppContext';
 import HomeScreen from './src/screens/HomeScreen';
 import AddScreen from './src/screens/AddScreen';
 import SplitScreen from './src/screens/SplitScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import PeopleScreen from './src/screens/PeopleScreen';
-import { colors, font, scale, spacing } from './src/theme';
+import OnboardingScreen from './src/screens/OnboardingScreen';
+import { font, scale, spacing, ThemeColors } from './src/theme';
 
 type Tab = 'home' | 'split' | 'add' | 'history' | 'people';
 
 function Root() {
   const { state, loaded } = useApp();
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [tab, setTab] = useState<Tab>('home');
   const insets = useSafeAreaInsets();
 
@@ -23,6 +26,18 @@ function Root() {
 
   if (!loaded) {
     return <View style={styles.app} />;
+  }
+
+  const statusBar = <StatusBar style={isDark ? 'light' : 'dark'} />;
+
+  // First launch: set up people and their incomes before anything else
+  if (!state.settings.onboarded) {
+    return (
+      <View style={[styles.app, { paddingTop: insets.top }]}>
+        {statusBar}
+        <OnboardingScreen />
+      </View>
+    );
   }
 
   const tabs: { key: Tab; label: string; icon: string }[] = [
@@ -35,6 +50,7 @@ function Root() {
 
   return (
     <View style={styles.app}>
+      {statusBar}
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         {activeTab === 'home' && <HomeScreen />}
         {activeTab === 'split' && showSplit && <SplitScreen />}
@@ -88,60 +104,60 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AppProvider>
-        <StatusBar style="dark" />
         <Root />
       </AppProvider>
     </SafeAreaProvider>
   );
 }
 
-const styles = StyleSheet.create({
-  app: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  screen: {
-    flex: 1,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-    paddingTop: spacing.s,
-    paddingHorizontal: spacing.s,
-  },
-  tabItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabIcon: {
-    fontSize: font.large,
-    lineHeight: font.large + scale(4),
-  },
-  tabLabel: {
-    fontSize: font.small,
-    marginTop: 1,
-  },
-  addButton: {
-    width: scale(48),
-    height: scale(48),
-    borderRadius: scale(24),
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: -scale(18),
-    shadowColor: colors.primary,
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-  },
-  addButtonText: {
-    color: colors.white,
-    fontSize: font.xlarge,
-    lineHeight: font.xlarge + scale(4),
-    fontWeight: '600',
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    app: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    screen: {
+      flex: 1,
+    },
+    tabBar: {
+      flexDirection: 'row',
+      backgroundColor: colors.card,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+      paddingTop: spacing.s,
+      paddingHorizontal: spacing.s,
+    },
+    tabItem: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    tabIcon: {
+      fontSize: font.large,
+      lineHeight: font.large + scale(4),
+    },
+    tabLabel: {
+      fontSize: font.small,
+      marginTop: 1,
+    },
+    addButton: {
+      width: scale(48),
+      height: scale(48),
+      borderRadius: scale(24),
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: -scale(18),
+      shadowColor: colors.primary,
+      shadowOpacity: 0.35,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 6,
+    },
+    addButtonText: {
+      color: colors.white,
+      fontSize: font.xlarge,
+      lineHeight: font.xlarge + scale(4),
+      fontWeight: '600',
+    },
+  });

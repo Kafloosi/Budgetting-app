@@ -1,9 +1,14 @@
 export type TransactionType = 'income' | 'expense';
 
+export type IncomeFrequency = 'weekly' | 'biweekly' | 'monthly';
+
 export interface Person {
   id: string;
   name: string;
   color: string;
+  /** Regular income in cents, earned every `incomeFrequency` */
+  incomeCents: number;
+  incomeFrequency: IncomeFrequency;
 }
 
 export interface Transaction {
@@ -20,6 +25,9 @@ export interface Transaction {
 }
 
 export type SplitMethod = 'fifty-fifty' | 'percentage' | 'equal-payments';
+
+/** Settlements can cover a calendar month or an ISO week */
+export type PeriodType = 'month' | 'week';
 
 export interface PersonResult {
   personId: string;
@@ -40,8 +48,9 @@ export interface Transfer {
 
 export interface SettlementRecord {
   id: string;
-  /** yyyy-mm of the period that was settled */
-  month: string;
+  periodType: PeriodType;
+  /** yyyy-mm for months, yyyy-Www for ISO weeks */
+  period: string;
   method: SplitMethod;
   totalSharedCents: number;
   results: PersonResult[];
@@ -50,8 +59,15 @@ export interface SettlementRecord {
   createdAt: string;
 }
 
+export interface AppSettings {
+  themeMode: 'light' | 'dark' | 'auto';
+  /** Whether the first-launch setup has been completed */
+  onboarded: boolean;
+}
+
 export interface AppState {
   people: Person[];
   transactions: Transaction[];
   settlements: SettlementRecord[];
+  settings: AppSettings;
 }

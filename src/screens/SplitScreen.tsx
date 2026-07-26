@@ -8,12 +8,24 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useApp } from '../context/AppContext';
-import { colors, font, radius, scale, spacing } from '../theme';
-import { currentMonthKey, formatCents, formatMonth, shiftMonth } from '../utils/money';
-import { computeSettlement, sharedExpensesForMonth } from '../utils/split';
-import { Card, PrimaryButton, Row, ScreenTitle, textStyles } from '../components/ui';
-import { SplitMethod } from '../types';
+import { useApp, useTheme } from '../context/AppContext';
+import { font, radius, scale, spacing, ThemeColors } from '../theme';
+import {
+  currentPeriodKey,
+  formatCents,
+  formatPeriod,
+} from '../utils/money';
+import { computeSettlement, sharedExpensesForPeriod } from '../utils/split';
+import {
+  Card,
+  Label,
+  PeriodNav,
+  PrimaryButton,
+  Row,
+  ScreenTitle,
+  SegmentedControl,
+} from '../components/ui';
+import { PeriodType, SplitMethod } from '../types';
 
 const METHOD_INFO: Record<SplitMethod, { title: string; description: string }> = {
   'fifty-fifty': {
@@ -22,7 +34,8 @@ const METHOD_INFO: Record<SplitMethod, { title: string; description: string }> =
   },
   'equal-payments': {
     title: 'Equal payments',
-    description: 'Everyone contributes the same payment towards the total.',
+    description:
+      'Based on income — each person pays in proportion to what they earn, so the burden is equal.',
   },
   percentage: {
     title: 'Percentage',
@@ -32,12 +45,20 @@ const METHOD_INFO: Record<SplitMethod, { title: string; description: string }> =
 
 export default function SplitScreen() {
   const { state, addSettlement } = useApp();
-  const [month, setMonth] = useState(currentMonthKey());
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const [periodType, setPeriodType] = useState<PeriodType>('month');
+  const [period, setPeriod] = useState(currentPeriodKey('month'));
   const twoPeople = state.people.length === 2;
   const [method, setMethod] = useState<SplitMethod>(
     twoPeople ? 'fifty-fifty' : 'equal-payments',
   );
   const [percentInputs, setPercentInputs] = useState<Record<string, string>>({});
+
+  const changePeriodType = (t: PeriodType) => {
+    setPeriodType(t);
+    setPeriod(currentPeriodKey(t));
+  };
 
   // 50/50 only makes sense with exactly two people
   const methods: SplitMethod[] = twoPeople
@@ -61,19 +82,31 @@ export default function SplitScreen() {
   const percentTotal = state.people.reduce((s, p) => s + percentages[p.id], 0);
   const percentagesValid = Math.abs(percentTotal - 100) < 0.01;
 
-  const expenses = sharedExpensesForMonth(state.transactions, month);
+  const expenses = sharedExpensesForPeriod(state.transactions, periodType, period);
   const settlement = useMemo(
     () =>
-      computeSettlement(state.people, state.transactions, month, activeMethod, percentages),
-    [state.people, state.transactions, month, activeMethod, percentages],
+      computeSettlement(
+        state.people,
+        state.transactions,
+        periodType,
+        period,
+        activeMethod,
+        percentages,
+      ),
+    [state.people, state.transactions, periodType, period, activeMethod, percentages],
   );
+
+  const noIncomes =
+    activeMethod === 'equal-payments' &&
+    state.people.every((p) => p.incomeCents <= 0);
 
   const canSave =
     expenses.length > 0 && (activeMethod !== 'percentage' || percentagesValid);
 
   const save = () => {
     addSettlement({
-      month,
+      periodType,
+      period,
       method: activeMethod,
       totalSharedCents: settlement.totalSharedCents,
       results: settlement.results,
@@ -86,17 +119,20 @@ export default function SplitScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <ScreenTitle title="Split" subtitle="Settle shared expenses" />
 
-      <Row style={styles.monthRow}>
-        <Pressable style={styles.monthArrow} onPress={() => setMonth(shiftMonth(month, -1))}>
-          <Text style={styles.monthArrowText}>‹</Text>
-        </Pressable>
-        <Text style={styles.monthLabel}>{formatMonth(month)}</Text>
-        <Pressable style={styles.monthArrow} onPress={() => setMonth(shiftMonth(month, 1))}>
-          <Text style={styles.monthArrowText}>›</Text>
-        </Pressable>
-      </Row>
+      <View style={{ marginBottom: spacing.l }}>
+        <SegmentedControl
+          options={[
+            { value: 'month', label: 'Month' },
+            { value: 'week', label: 'Week' },
+          ]}
+          value={periodType}
+          onChange={changePeriodType}
+        />
+      </View>
 
-      <Text style={textStyles.label}>How do you want to split?</Text>
+      <PeriodNav periodType={periodType} period={period} onChange={setPeriod} />
+
+      <Label>How do you want to split?</Label>
       {methods.map((m) => {
         const active = m === activeMethod;
         return (
@@ -119,9 +155,18 @@ export default function SplitScreen() {
         );
       })}
 
+      {noIncomes ? (
+        <Card style={styles.warnCard}>
+          <Text style={styles.warnText}>
+            No incomes are set, so this splits equally for now. Set each
+            person's income in the People tab to split based on income.
+          </Text>
+        </Card>
+      ) : null}
+
       {activeMethod === 'percentage' ? (
         <Card>
-          <Text style={textStyles.label}>Percentages</Text>
+          <Label>Percentages</Label>
           {state.people.map((p) => (
             <Row key={p.id} style={styles.percentRow}>
               <View style={[styles.dot, { backgroundColor: p.color }]} />
@@ -151,7 +196,7 @@ export default function SplitScreen() {
       ) : null}
 
       <Card>
-        <Text style={textStyles.label}>Result · {formatMonth(month)}</Text>
+        <Label>Result · {formatPeriod(periodType, period)}</Label>
         <Row style={styles.totalRow}>
           <Text style={styles.totalLabel}>Total shared expenses</Text>
           <Text style={styles.totalValue}>{formatCents(settlement.totalSharedCents)}</Text>
@@ -159,7 +204,8 @@ export default function SplitScreen() {
 
         {expenses.length === 0 ? (
           <Text style={styles.emptyText}>
-            No shared expenses in this month. Mark expenses as “shared” when adding them.
+            No shared expenses in this {periodType}. Mark expenses as “shared”
+            when adding them.
           </Text>
         ) : (
           <>
@@ -208,94 +254,87 @@ export default function SplitScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.l, paddingBottom: scale(100) },
-  monthRow: { justifyContent: 'space-between', marginBottom: spacing.l },
-  monthArrow: {
-    width: scale(40),
-    height: scale(40),
-    borderRadius: radius.m,
-    backgroundColor: colors.card,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  monthArrowText: { fontSize: font.large, color: colors.text, lineHeight: font.large + 2 },
-  monthLabel: { fontSize: font.large, fontWeight: '700', color: colors.text },
-  methodCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.m,
-  },
-  methodCardActive: {
-    borderColor: colors.primary,
-    borderWidth: 1.5,
-    backgroundColor: colors.primarySoft,
-  },
-  radio: {
-    width: scale(20),
-    height: scale(20),
-    borderRadius: scale(10),
-    borderWidth: 2,
-    borderColor: colors.border,
-    marginRight: spacing.m,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioActive: { borderColor: colors.primary },
-  radioInner: {
-    width: scale(10),
-    height: scale(10),
-    borderRadius: scale(5),
-    backgroundColor: colors.primary,
-  },
-  methodTitle: { fontSize: font.body, fontWeight: '700', color: colors.text },
-  methodDescription: { fontSize: font.small, color: colors.textSecondary, marginTop: 1 },
-  percentRow: { marginBottom: spacing.s },
-  dot: { width: scale(10), height: scale(10), borderRadius: scale(5), marginRight: spacing.s },
-  percentName: { flex: 1, fontSize: font.body, color: colors.text, fontWeight: '600' },
-  percentInput: {
-    width: scale(70),
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.s,
-    paddingVertical: scale(6),
-    paddingHorizontal: spacing.s,
-    fontSize: font.body,
-    textAlign: 'right',
-    color: colors.text,
-    backgroundColor: colors.background,
-  },
-  percentSign: { marginLeft: spacing.xs, fontSize: font.body, color: colors.textSecondary },
-  percentTotal: { marginTop: spacing.xs, fontSize: font.small, fontWeight: '600' },
-  totalRow: { justifyContent: 'space-between', marginBottom: spacing.m },
-  totalLabel: { fontSize: font.body, color: colors.textSecondary },
-  totalValue: { fontSize: font.medium, fontWeight: '800', color: colors.text },
-  emptyText: { fontSize: font.body, color: colors.textSecondary },
-  resultRow: {
-    paddingVertical: spacing.s,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-  },
-  resultName: { fontSize: font.body, fontWeight: '700', color: colors.text },
-  resultNet: { fontSize: font.body, fontWeight: '700' },
-  resultDetail: { fontSize: font.small, color: colors.textSecondary, marginTop: 2 },
-  transfersBox: {
-    marginTop: spacing.m,
-    backgroundColor: colors.primarySoft,
-    borderRadius: radius.m,
-    padding: spacing.m,
-  },
-  transfersTitle: {
-    fontSize: font.small,
-    fontWeight: '700',
-    color: colors.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginBottom: spacing.xs,
-  },
-  transferText: { fontSize: font.body, color: colors.text, marginTop: 2 },
-  settledText: { marginTop: spacing.m, fontSize: font.body, color: colors.income },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    content: { padding: spacing.l, paddingBottom: scale(100) },
+    methodCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.m,
+    },
+    methodCardActive: {
+      borderColor: colors.primary,
+      borderWidth: 1.5,
+      backgroundColor: colors.primarySoft,
+    },
+    radio: {
+      width: scale(20),
+      height: scale(20),
+      borderRadius: scale(10),
+      borderWidth: 2,
+      borderColor: colors.border,
+      marginRight: spacing.m,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    radioActive: { borderColor: colors.primary },
+    radioInner: {
+      width: scale(10),
+      height: scale(10),
+      borderRadius: scale(5),
+      backgroundColor: colors.primary,
+    },
+    methodTitle: { fontSize: font.body, fontWeight: '700', color: colors.text },
+    methodDescription: { fontSize: font.small, color: colors.textSecondary, marginTop: 1 },
+    warnCard: {
+      backgroundColor: colors.expenseSoft,
+      borderColor: colors.expense,
+    },
+    warnText: { fontSize: font.small, color: colors.text },
+    percentRow: { marginBottom: spacing.s },
+    dot: { width: scale(10), height: scale(10), borderRadius: scale(5), marginRight: spacing.s },
+    percentName: { flex: 1, fontSize: font.body, color: colors.text, fontWeight: '600' },
+    percentInput: {
+      width: scale(70),
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.s,
+      paddingVertical: scale(6),
+      paddingHorizontal: spacing.s,
+      fontSize: font.body,
+      textAlign: 'right',
+      color: colors.text,
+      backgroundColor: colors.background,
+    },
+    percentSign: { marginLeft: spacing.xs, fontSize: font.body, color: colors.textSecondary },
+    percentTotal: { marginTop: spacing.xs, fontSize: font.small, fontWeight: '600' },
+    totalRow: { justifyContent: 'space-between', marginBottom: spacing.m },
+    totalLabel: { fontSize: font.body, color: colors.textSecondary },
+    totalValue: { fontSize: font.medium, fontWeight: '800', color: colors.text },
+    emptyText: { fontSize: font.body, color: colors.textSecondary },
+    resultRow: {
+      paddingVertical: spacing.s,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+    },
+    resultName: { fontSize: font.body, fontWeight: '700', color: colors.text },
+    resultNet: { fontSize: font.body, fontWeight: '700' },
+    resultDetail: { fontSize: font.small, color: colors.textSecondary, marginTop: 2 },
+    transfersBox: {
+      marginTop: spacing.m,
+      backgroundColor: colors.primarySoft,
+      borderRadius: radius.m,
+      padding: spacing.m,
+    },
+    transfersTitle: {
+      fontSize: font.small,
+      fontWeight: '700',
+      color: colors.primary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.6,
+      marginBottom: spacing.xs,
+    },
+    transferText: { fontSize: font.body, color: colors.text, marginTop: 2 },
+    settledText: { marginTop: spacing.m, fontSize: font.body, color: colors.income },
+  });

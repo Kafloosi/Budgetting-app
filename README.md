@@ -4,15 +4,18 @@ A simple, phone-first budgeting app for one or more people. Built with **Expo / 
 
 ## Features
 
+- **First-launch setup** — on first start the app asks who the budget is for: add the people and each person's regular income (weekly, bi-weekly or monthly).
 - **Quick entry** — add any income or expense in a few taps (amount, description, who it belongs to).
 - **Multiple people** — track each person's incomes and expenses separately, or view everything **combined**. With a single person the multi-person options stay hidden.
 - **Shared vs personal expenses** — mark an expense as *shared* to include it when settling up.
-- **Split / settle up** (only shown with 2+ people) with three methods:
+- **Split / settle up** (only shown with 2+ people), per month **or per week**, with three methods:
   - **50/50** — shared expenses split equally, half each (shown with exactly two people).
   - **Percentage** — each person pays a custom percentage of the total (must add up to 100%).
-  - **Equal payments** — everyone contributes the same payment towards the total (any number of people).
+  - **Equal payments** — based on income: each person pays in proportion to what they earn, so the burden is equal. Falls back to an even split when no incomes are set.
   - The app shows who paid what, each person's share, and the minimal set of payments to settle up.
-- **History** — saved split calculations, grouped by month and sorted latest month first.
+- **History** — saved split calculations with a **Monthly / Weekly** toggle, grouped by period and sorted latest first.
+- **No time travel** — only the current or past months/weeks can be selected, never future ones.
+- **Dark mode** — Light, Dark, or Auto (follows the phone's system setting), switchable in the People tab.
 - **Responsive** — all sizes and fonts scale with the phone's screen width, and safe-area insets are respected (notches, home indicator).
 - **Offline & private** — all data is stored locally on the device (AsyncStorage). No account, no server.
 

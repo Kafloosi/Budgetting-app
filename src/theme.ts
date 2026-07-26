@@ -16,7 +16,24 @@ export function ms(size: number, resistance = 0.5): number {
   return PixelRatio.roundToNearestPixel(size + (scale(size) - size) * resistance);
 }
 
-export const colors = {
+export type ThemeMode = 'light' | 'dark' | 'auto';
+
+export interface ThemeColors {
+  background: string;
+  card: string;
+  primary: string;
+  primarySoft: string;
+  income: string;
+  incomeSoft: string;
+  expense: string;
+  expenseSoft: string;
+  text: string;
+  textSecondary: string;
+  border: string;
+  white: string;
+}
+
+export const lightColors: ThemeColors = {
   background: '#F4F5FA',
   card: '#FFFFFF',
   primary: '#4F63F6',
@@ -28,6 +45,21 @@ export const colors = {
   text: '#1B1D29',
   textSecondary: '#6E7180',
   border: '#E4E6EE',
+  white: '#FFFFFF',
+};
+
+export const darkColors: ThemeColors = {
+  background: '#0F1017',
+  card: '#1A1C26',
+  primary: '#7A8AFF',
+  primarySoft: '#272C48',
+  income: '#37C393',
+  incomeSoft: '#16322A',
+  expense: '#F16A72',
+  expenseSoft: '#3B2327',
+  text: '#F0F1F5',
+  textSecondary: '#9A9DAD',
+  border: '#2A2D3A',
   white: '#FFFFFF',
 };
 

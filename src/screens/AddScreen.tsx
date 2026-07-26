@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -10,21 +10,23 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useApp } from '../context/AppContext';
-import { colors, font, radius, scale, spacing } from '../theme';
+import { useApp, useTheme } from '../context/AppContext';
+import { font, scale, spacing, ThemeColors } from '../theme';
 import { parseAmountToCents, todayIso } from '../utils/money';
 import {
   Card,
   Chip,
+  Label,
   PrimaryButton,
   ScreenTitle,
   SegmentedControl,
-  textStyles,
 } from '../components/ui';
 import { TransactionType } from '../types';
 
 export default function AddScreen({ onSaved }: { onSaved: () => void }) {
   const { state, addTransaction } = useApp();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [type, setType] = useState<TransactionType>('expense');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -83,7 +85,7 @@ export default function AddScreen({ onSaved }: { onSaved: () => void }) {
         />
 
         <Card style={{ marginTop: spacing.l }}>
-          <Text style={textStyles.label}>Amount</Text>
+          <Label>Amount</Label>
           <View style={styles.amountRow}>
             <Text style={[styles.euro, { color: accent }]}>€</Text>
             <TextInput
@@ -99,7 +101,7 @@ export default function AddScreen({ onSaved }: { onSaved: () => void }) {
         </Card>
 
         <Card>
-          <Text style={textStyles.label}>Description</Text>
+          <Label>Description</Label>
           <TextInput
             style={styles.noteInput}
             value={note}
@@ -112,7 +114,7 @@ export default function AddScreen({ onSaved }: { onSaved: () => void }) {
 
         {multiPerson ? (
           <Card>
-            <Text style={textStyles.label}>Who?</Text>
+            <Label>Who?</Label>
             <View style={styles.chipsWrap}>
               {state.people.map((p) => (
                 <Chip
@@ -161,54 +163,55 @@ export default function AddScreen({ onSaved }: { onSaved: () => void }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: {
-    padding: spacing.l,
-    paddingBottom: scale(100),
-  },
-  amountRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  euro: {
-    fontSize: font.xlarge,
-    fontWeight: '700',
-    marginRight: spacing.s,
-  },
-  amountInput: {
-    flex: 1,
-    fontSize: font.huge,
-    fontWeight: '800',
-    paddingVertical: spacing.xs,
-  },
-  noteInput: {
-    fontSize: font.medium,
-    color: colors.text,
-    paddingVertical: spacing.xs,
-  },
-  chipsWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  sharedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sharedTitle: {
-    fontSize: font.body,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 2,
-  },
-  sharedHint: {
-    fontSize: font.small,
-    color: colors.textSecondary,
-  },
-  noPeopleHint: {
-    marginTop: spacing.m,
-    fontSize: font.small,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    content: {
+      padding: spacing.l,
+      paddingBottom: scale(100),
+    },
+    amountRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    euro: {
+      fontSize: font.xlarge,
+      fontWeight: '700',
+      marginRight: spacing.s,
+    },
+    amountInput: {
+      flex: 1,
+      fontSize: font.huge,
+      fontWeight: '800',
+      paddingVertical: spacing.xs,
+    },
+    noteInput: {
+      fontSize: font.medium,
+      color: colors.text,
+      paddingVertical: spacing.xs,
+    },
+    chipsWrap: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+    },
+    sharedRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    sharedTitle: {
+      fontSize: font.body,
+      fontWeight: '700',
+      color: colors.text,
+      marginBottom: 2,
+    },
+    sharedHint: {
+      fontSize: font.small,
+      color: colors.textSecondary,
+    },
+    noPeopleHint: {
+      marginTop: spacing.m,
+      fontSize: font.small,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+  });

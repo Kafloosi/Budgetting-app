@@ -1,19 +1,24 @@
 import {
+  PeriodType,
   Person,
   PersonResult,
   SplitMethod,
   Transaction,
   Transfer,
 } from '../types';
-import { monthKey } from './money';
+import { monthlyIncomeCents, periodOfDate } from './money';
 
-/** All shared expenses for the given month */
-export function sharedExpensesForMonth(
+/** All shared expenses that fall inside the given month or week */
+export function sharedExpensesForPeriod(
   transactions: Transaction[],
-  month: string,
+  periodType: PeriodType,
+  period: string,
 ): Transaction[] {
   return transactions.filter(
-    (t) => t.type === 'expense' && t.shared && monthKey(t.date) === month,
+    (t) =>
+      t.type === 'expense' &&
+      t.shared &&
+      periodOfDate(periodType, t.date) === period,
   );
 }
 
@@ -44,26 +49,36 @@ function distribute(totalCents: number, weights: number[]): number[] {
 }
 
 /**
- * Compute each person's share of the shared expenses for a month.
+ * Compute each person's share of the shared expenses for a period.
  *
- * - fifty-fifty:   everyone owes an equal part of the total (50/50 for two)
- * - equal-payments: everyone contributes the same fixed payment (total / n)
- * - percentage:    each person owes their custom percentage of the total
+ * - fifty-fifty:    everyone owes an equal part of the total (50/50 for two)
+ * - equal-payments: based on income — each person pays in proportion to their
+ *                   (monthly-normalized) income, so the burden is equal.
+ *                   Falls back to an even split when no incomes are set.
+ * - percentage:     each person owes their custom percentage of the total
  */
 export function computeSettlement(
   people: Person[],
   transactions: Transaction[],
-  month: string,
+  periodType: PeriodType,
+  period: string,
   method: SplitMethod,
   percentages?: Record<string, number>,
 ): { totalSharedCents: number; results: PersonResult[]; transfers: Transfer[] } {
-  const expenses = sharedExpensesForMonth(transactions, month);
+  const expenses = sharedExpensesForPeriod(transactions, periodType, period);
   const totalSharedCents = expenses.reduce((sum, t) => sum + t.amountCents, 0);
 
-  const weights =
-    method === 'percentage'
-      ? people.map((p) => percentages?.[p.id] ?? 0)
-      : people.map(() => 1);
+  let weights: number[];
+  if (method === 'percentage') {
+    weights = people.map((p) => percentages?.[p.id] ?? 0);
+  } else if (method === 'equal-payments') {
+    const incomes = people.map((p) =>
+      monthlyIncomeCents(p.incomeCents, p.incomeFrequency),
+    );
+    weights = incomes.some((x) => x > 0) ? incomes : people.map(() => 1);
+  } else {
+    weights = people.map(() => 1);
+  }
 
   const shares = distribute(totalSharedCents, weights);
 
