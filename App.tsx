@@ -1,24 +1,38 @@
-import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { AppState as RNAppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppProvider, useApp, useTheme } from './src/context/AppContext';
 import HomeScreen from './src/screens/HomeScreen';
+import StatsScreen from './src/screens/StatsScreen';
 import AddScreen from './src/screens/AddScreen';
 import SplitScreen from './src/screens/SplitScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
-import PeopleScreen from './src/screens/PeopleScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
+import { LockScreen } from './src/components/LockScreen';
+import { useThemedStyles } from './src/components/ui';
 import { font, scale, spacing, ThemeColors } from './src/theme';
 
-type Tab = 'home' | 'split' | 'add' | 'history' | 'people';
+type Tab = 'home' | 'stats' | 'add' | 'split' | 'history' | 'settings';
 
 function Root() {
   const { state, loaded } = useApp();
   const { colors, isDark } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const styles = useThemedStyles(makeStyles);
   const [tab, setTab] = useState<Tab>('home');
+  const [unlocked, setUnlocked] = useState(false);
   const insets = useSafeAreaInsets();
+
+  // Re-lock whenever the app goes to the background
+  const appLock = state.settings.appLock;
+  useEffect(() => {
+    if (!appLock) return;
+    const sub = RNAppState.addEventListener('change', (status) => {
+      if (status === 'background') setUnlocked(false);
+    });
+    return () => sub.remove();
+  }, [appLock]);
 
   // The split feature only exists when there is more than one person
   const showSplit = state.people.length > 1;
@@ -29,6 +43,15 @@ function Root() {
   }
 
   const statusBar = <StatusBar style={isDark ? 'light' : 'dark'} />;
+
+  if (appLock && !unlocked) {
+    return (
+      <View style={[styles.app, { paddingTop: insets.top }]}>
+        {statusBar}
+        <LockScreen onUnlock={() => setUnlocked(true)} />
+      </View>
+    );
+  }
 
   // First launch: set up people and their incomes before anything else
   if (!state.settings.onboarded) {
@@ -42,10 +65,11 @@ function Root() {
 
   const tabs: { key: Tab; label: string; icon: string }[] = [
     { key: 'home', label: 'Home', icon: '⌂' },
-    ...(showSplit ? [{ key: 'split' as Tab, label: 'Split', icon: '⇄' }] : []),
+    { key: 'stats', label: 'Stats', icon: '📊' },
     { key: 'add', label: 'Add', icon: '+' },
+    ...(showSplit ? [{ key: 'split' as Tab, label: 'Split', icon: '⇄' }] : []),
     { key: 'history', label: 'History', icon: '🕘' },
-    { key: 'people', label: 'People', icon: '👥' },
+    { key: 'settings', label: 'Settings', icon: '⚙️' },
   ];
 
   return (
@@ -53,10 +77,11 @@ function Root() {
       {statusBar}
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         {activeTab === 'home' && <HomeScreen />}
+        {activeTab === 'stats' && <StatsScreen />}
         {activeTab === 'split' && showSplit && <SplitScreen />}
         {activeTab === 'add' && <AddScreen onSaved={() => setTab('home')} />}
         {activeTab === 'history' && <HistoryScreen />}
-        {activeTab === 'people' && <PeopleScreen />}
+        {activeTab === 'settings' && <SettingsScreen />}
       </View>
 
       <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, spacing.s) }]}>

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -8,10 +8,17 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useApp, useTheme } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
 import { font, scale, spacing, ThemeColors } from '../theme';
 import { FREQUENCY_LABEL, formatCents } from '../utils/money';
-import { Card, Label, PrimaryButton, Row } from '../components/ui';
+import {
+  Card,
+  CurrencyChips,
+  Label,
+  PrimaryButton,
+  Row,
+  useThemedStyles,
+} from '../components/ui';
 import { PersonForm } from '../components/PersonForm';
 
 /**
@@ -20,8 +27,7 @@ import { PersonForm } from '../components/PersonForm';
  */
 export default function OnboardingScreen() {
   const { state, addPerson, removePerson, completeOnboarding } = useApp();
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const styles = useThemedStyles(makeStyles);
 
   return (
     <KeyboardAvoidingView
@@ -37,7 +43,7 @@ export default function OnboardingScreen() {
         <Text style={styles.subtitle}>
           Who is this budget for? Add one person to track your own money, or
           several to split shared expenses. Income is optional — it powers the
-          income-based split and can be changed later in the People tab.
+          income-based split and can be changed later in the Settings tab.
         </Text>
 
         {state.people.length > 0 ? (
@@ -68,6 +74,12 @@ export default function OnboardingScreen() {
             submitLabel={state.people.length === 0 ? 'Add person' : 'Add another person'}
             onSubmit={addPerson}
           />
+        </Card>
+
+        <Card>
+          <Label>Currency</Label>
+          <CurrencyChips limit={4} />
+          <Text style={styles.currencyHint}>More currencies in Settings later.</Text>
         </Card>
 
         <PrimaryButton
@@ -133,5 +145,10 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: font.medium,
       fontWeight: '700',
       paddingHorizontal: spacing.s,
+    },
+    currencyHint: {
+      fontSize: font.small,
+      color: colors.textSecondary,
+      marginTop: spacing.xs,
     },
   });

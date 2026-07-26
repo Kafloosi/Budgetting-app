@@ -1,13 +1,44 @@
 import { IncomeFrequency, PeriodType } from '../types';
 
+export interface Currency {
+  code: string;
+  symbol: string;
+}
+
+export const CURRENCIES: Currency[] = [
+  { code: 'EUR', symbol: '€' },
+  { code: 'USD', symbol: '$' },
+  { code: 'GBP', symbol: '£' },
+  { code: 'CHF', symbol: 'CHF' },
+  { code: 'SEK', symbol: 'kr' },
+  { code: 'NOK', symbol: 'kr' },
+  { code: 'DKK', symbol: 'kr' },
+  { code: 'PLN', symbol: 'zł' },
+];
+
+// The active currency symbol, set from settings by the app provider so the
+// many formatCents call sites don't all need the settings threaded through.
+// Trade-off: formatted strings must not be cached across renders (e.g. in
+// React.memo'd rows), or they would go stale when the user switches currency.
+let activeSymbol = '€';
+
+export function setActiveCurrency(code: string): void {
+  activeSymbol = CURRENCIES.find((c) => c.code === code)?.symbol ?? '€';
+}
+
+export function currencySymbol(): string {
+  return activeSymbol;
+}
+
 export function formatCents(cents: number): string {
   const sign = cents < 0 ? '-' : '';
   const abs = Math.abs(cents);
-  const euros = Math.floor(abs / 100);
+  const whole = Math.floor(abs / 100);
   const rest = String(abs % 100).padStart(2, '0');
   // Thousands separator (dot, European style)
-  const eurosStr = euros.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  return `${sign}€${eurosStr},${rest}`;
+  const wholeStr = whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  const symbol = activeSymbol.length > 1 ? `${activeSymbol} ` : activeSymbol;
+  return `${sign}${symbol}${wholeStr},${rest}`;
 }
 
 /** Parse user input like "12,50", "12.50" or "12" into cents. Returns null when invalid. */
@@ -19,11 +50,22 @@ export function parseAmountToCents(input: string): number | null {
   return value;
 }
 
+/** Inverse of parseAmountToCents: cents as an editable input string ("12,50") */
+export function centsToInput(cents: number): string {
+  return cents > 0 ? String(cents / 100).replace('.', ',') : '';
+}
+
 export const FREQUENCY_LABEL: Record<IncomeFrequency, string> = {
   weekly: 'week',
   biweekly: '2 weeks',
   monthly: 'month',
 };
+
+export const FREQUENCY_OPTIONS: { value: IncomeFrequency; label: string }[] = [
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'biweekly', label: 'Bi-weekly' },
+  { value: 'monthly', label: 'Monthly' },
+];
 
 /** Normalize an income to a monthly amount so different frequencies compare fairly */
 export function monthlyIncomeCents(
@@ -131,6 +173,23 @@ export function periodOfDate(type: PeriodType, isoDate: string): string {
 
 export function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+export function addDays(isoDate: string, days: number): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d + days));
+  return date.toISOString().slice(0, 10);
+}
+
+/** Add months keeping the day of month, clamped to the target month's length */
+export function addMonthsClamped(isoDate: string, months: number): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const firstOfTarget = new Date(Date.UTC(y, m - 1 + months, 1));
+  const daysInTarget = new Date(
+    Date.UTC(firstOfTarget.getUTCFullYear(), firstOfTarget.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  firstOfTarget.setUTCDate(Math.min(d, daysInTarget));
+  return firstOfTarget.toISOString().slice(0, 10);
 }
 
 export function formatDate(isoDate: string): string {

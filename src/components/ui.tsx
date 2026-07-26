@@ -3,17 +3,31 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
+  TextInputProps,
+  TextStyle,
   View,
   ViewStyle,
 } from 'react-native';
-import { useTheme } from '../context/AppContext';
+import { useApp, useTheme } from '../context/AppContext';
 import { font, radius, scale, spacing, ThemeColors } from '../theme';
 import { PeriodType } from '../types';
-import { currentPeriodKey, formatPeriod, shiftPeriod } from '../utils/money';
+import { CURRENCIES, currentPeriodKey, formatPeriod, shiftPeriod } from '../utils/money';
+
+/** Build a themed StyleSheet, re-created only when the theme changes. */
+export function useThemedStyles<T>(factory: (colors: ThemeColors) => T): T {
+  const { colors } = useTheme();
+  return useMemo(() => factory(colors), [colors, factory]);
+}
+
+/** Standard container/content styles shared by every screen */
+export const screenChrome = (colors: ThemeColors) => ({
+  container: { flex: 1, backgroundColor: colors.background } as ViewStyle,
+  content: { padding: spacing.l, paddingBottom: scale(100) } as ViewStyle,
+});
 
 function useStyles(): ReturnType<typeof makeStyles> {
-  const { colors } = useTheme();
-  return useMemo(() => makeStyles(colors), [colors]);
+  return useThemedStyles(makeStyles);
 }
 
 export function Card({
@@ -197,6 +211,36 @@ export function PeriodNav({
   );
 }
 
+/** Themed bordered text input used across all forms */
+export function Input({ style, ...props }: TextInputProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
+  return (
+    <TextInput
+      style={[styles.input, style as TextStyle]}
+      placeholderTextColor={colors.textSecondary}
+      {...props}
+    />
+  );
+}
+
+/** Currency selector chips; `limit` shows only the most common ones */
+export function CurrencyChips({ limit }: { limit?: number }) {
+  const { state, setCurrencyCode } = useApp();
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+      {CURRENCIES.slice(0, limit ?? CURRENCIES.length).map((c) => (
+        <Chip
+          key={c.code}
+          label={`${c.symbol} ${c.code}`}
+          selected={state.settings.currencyCode === c.code}
+          onPress={() => setCurrencyCode(c.code)}
+        />
+      ))}
+    </View>
+  );
+}
+
 export function EmptyState({ icon, message }: { icon: string; message: string }) {
   const styles = useStyles();
   return (
@@ -291,6 +335,16 @@ const makeStyles = (colors: ThemeColors) =>
     segmentLabel: {
       fontSize: font.body,
       fontWeight: '600',
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.m,
+      paddingHorizontal: spacing.m,
+      paddingVertical: scale(10),
+      fontSize: font.body,
+      color: colors.text,
+      backgroundColor: colors.background,
     },
     periodRow: {
       flexDirection: 'row',

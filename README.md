@@ -14,8 +14,17 @@ A simple, phone-first budgeting app for one or more people. Built with **Expo / 
   - **Equal payments** — based on income: each person pays in proportion to what they earn, so the burden is equal. Falls back to an even split when no incomes are set.
   - The app shows who paid what, each person's share, and the minimal set of payments to settle up.
 - **History** — saved split calculations with a **Monthly / Weekly** toggle, grouped by period and sorted latest first.
+- **Categories** — every expense gets a category (10 built-in + your own custom ones).
+- **Recurring entries** — set an entry to repeat weekly, bi-weekly, or monthly (rent, salary, subscriptions); future occurrences are added automatically.
+- **Editing** — tap any entry to edit it, pick any past date when adding.
+- **Budgets** — monthly spending limits per category with progress bars and over-budget warnings.
+- **Stats** — income vs expenses over the last 6 months, spending by category, budget progress.
+- **Search & filters** — search entries by text or category, filter income/expenses.
+- **Export / import** — JSON backup and CSV export via the share sheet; import a backup to move to a new phone.
+- **App lock** — optional fingerprint/face unlock via the phone's biometrics.
+- **Currency setting** — €, $, £, CHF, kr, zł and more (display symbol only).
 - **No time travel** — only the current or past months/weeks can be selected, never future ones.
-- **Dark mode** — Light, Dark, or Auto (follows the phone's system setting), switchable in the People tab.
+- **Dark mode** — Light, Dark, or Auto (follows the phone's system setting), switchable in Settings.
 - **Responsive** — all sizes and fonts scale with the phone's screen width, and safe-area insets are respected (notches, home indicator).
 - **Offline & private** — all data is stored locally on the device (AsyncStorage). No account, no server.
 

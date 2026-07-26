@@ -27,6 +27,7 @@ export interface ThemeColors {
   incomeSoft: string;
   expense: string;
   expenseSoft: string;
+  warning: string;
   text: string;
   textSecondary: string;
   border: string;
@@ -42,6 +43,7 @@ export const lightColors: ThemeColors = {
   incomeSoft: '#E3F6EF',
   expense: '#E5484D',
   expenseSoft: '#FCEAEA',
+  warning: '#E58E26',
   text: '#1B1D29',
   textSecondary: '#6E7180',
   border: '#E4E6EE',
@@ -57,6 +59,7 @@ export const darkColors: ThemeColors = {
   incomeSoft: '#16322A',
   expense: '#F16A72',
   expenseSoft: '#3B2327',
+  warning: '#F0A44D',
   text: '#F0F1F5',
   textSecondary: '#9A9DAD',
   border: '#2A2D3A',

@@ -3,19 +3,24 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
-import { useColorScheme } from 'react-native';
+import { AppState as RNAppState, useColorScheme } from 'react-native';
 import {
   AppState,
+  Category,
   IncomeFrequency,
   Person,
+  RecurringRule,
   SettlementRecord,
   Transaction,
 } from '../types';
 import { emptyState, loadState, saveState } from '../storage';
-import { makeId } from '../utils/money';
+import { allCategories, OTHER_CATEGORY_ID } from '../categories';
+import { makeId, setActiveCurrency } from '../utils/money';
+import { applyRecurring } from '../utils/recurring';
 import {
   darkColors,
   lightColors,
@@ -37,11 +42,21 @@ interface AppContextValue {
   updatePerson: (id: string, patch: Partial<Omit<Person, 'id'>>) => void;
   removePerson: (id: string) => void;
   addTransaction: (t: Omit<Transaction, 'id'>) => void;
+  updateTransaction: (id: string, patch: Partial<Omit<Transaction, 'id'>>) => void;
   removeTransaction: (id: string) => void;
+  addRecurring: (rule: Omit<RecurringRule, 'id' | 'lastAppliedDate'>) => void;
+  removeRecurring: (id: string, deleteTransactions: boolean) => void;
+  addCategory: (name: string, emoji: string) => void;
+  removeCategory: (id: string) => void;
+  setBudget: (categoryId: string, limitCents: number | null) => void;
   addSettlement: (s: Omit<SettlementRecord, 'id' | 'createdAt'>) => void;
   removeSettlement: (id: string) => void;
   setThemeMode: (mode: ThemeMode) => void;
+  setCurrencyCode: (code: string) => void;
+  setAppLock: (enabled: boolean) => void;
   completeOnboarding: () => void;
+  /** Replace the whole state (used by backup import) */
+  replaceState: (next: AppState) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -52,6 +67,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const loadedRef = useRef(false);
 
   useEffect(() => {
+    // loadState returns normalized state (migrated + recurring applied)
     loadState().then((persisted) => {
       setState(persisted);
       loadedRef.current = true;
@@ -59,9 +75,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  // Catch up on recurring entries when the app returns to the foreground
+  useEffect(() => {
+    const sub = RNAppState.addEventListener('change', (status) => {
+      if (status === 'active' && loadedRef.current) {
+        setState((s) => applyRecurring(s));
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
   useEffect(() => {
     if (loadedRef.current) saveState(state);
   }, [state]);
+
+  // Keep the money formatter in sync with the chosen currency
+  setActiveCurrency(state.settings.currencyCode);
 
   const addPerson = useCallback((person: NewPerson) => {
     setState((s) => ({
@@ -94,6 +123,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...s,
       people: s.people.filter((p) => p.id !== id),
       transactions: s.transactions.filter((t) => t.personId !== id),
+      recurring: s.recurring.filter((r) => r.personId !== id),
     }));
   }, []);
 
@@ -104,11 +134,79 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
+  const updateTransaction = useCallback(
+    (id: string, patch: Partial<Omit<Transaction, 'id'>>) => {
+      setState((s) => ({
+        ...s,
+        transactions: s.transactions.map((t) =>
+          t.id === id ? { ...t, ...patch } : t,
+        ),
+      }));
+    },
+    [],
+  );
+
   const removeTransaction = useCallback((id: string) => {
     setState((s) => ({
       ...s,
       transactions: s.transactions.filter((t) => t.id !== id),
     }));
+  }, []);
+
+  const addRecurring = useCallback(
+    (rule: Omit<RecurringRule, 'id' | 'lastAppliedDate'>) => {
+      setState((s) =>
+        applyRecurring({
+          ...s,
+          recurring: [...s.recurring, { ...rule, id: makeId() }],
+        }),
+      );
+    },
+    [],
+  );
+
+  const removeRecurring = useCallback((id: string, deleteTransactions: boolean) => {
+    setState((s) => ({
+      ...s,
+      recurring: s.recurring.filter((r) => r.id !== id),
+      transactions: deleteTransactions
+        ? s.transactions.filter((t) => t.recurringId !== id)
+        : s.transactions,
+    }));
+  }, []);
+
+  const addCategory = useCallback((name: string, emoji: string) => {
+    setState((s) => ({
+      ...s,
+      customCategories: [
+        ...s.customCategories,
+        { id: makeId(), name: name.trim(), emoji: emoji.trim() || '🏷️' },
+      ],
+    }));
+  }, []);
+
+  const removeCategory = useCallback((id: string) => {
+    setState((s) => {
+      const { [id]: _removed, ...budgets } = s.budgets;
+      return {
+        ...s,
+        customCategories: s.customCategories.filter((c) => c.id !== id),
+        budgets,
+        // Entries in the removed category fall back to "Other"
+        transactions: s.transactions.map((t) =>
+          t.categoryId === id ? { ...t, categoryId: undefined } : t,
+        ),
+      };
+    });
+  }, []);
+
+  const setBudget = useCallback((categoryId: string, limitCents: number | null) => {
+    setState((s) => {
+      const budgets = { ...s.budgets };
+      if (limitCents && limitCents > 0) budgets[categoryId] = limitCents;
+      else delete budgets[categoryId];
+      return { ...s, budgets };
+    });
   }, []);
 
   const addSettlement = useCallback(
@@ -135,8 +233,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setState((s) => ({ ...s, settings: { ...s.settings, themeMode: mode } }));
   }, []);
 
+  const setCurrencyCode = useCallback((code: string) => {
+    setState((s) => ({ ...s, settings: { ...s.settings, currencyCode: code } }));
+  }, []);
+
+  const setAppLock = useCallback((enabled: boolean) => {
+    setState((s) => ({ ...s, settings: { ...s.settings, appLock: enabled } }));
+  }, []);
+
   const completeOnboarding = useCallback(() => {
     setState((s) => ({ ...s, settings: { ...s.settings, onboarded: true } }));
+  }, []);
+
+  // Expects normalized state (from storage.parseBackup)
+  const replaceState = useCallback((next: AppState) => {
+    setState(next);
   }, []);
 
   return (
@@ -148,11 +259,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updatePerson,
         removePerson,
         addTransaction,
+        updateTransaction,
         removeTransaction,
+        addRecurring,
+        removeRecurring,
+        addCategory,
+        removeCategory,
+        setBudget,
         addSettlement,
         removeSettlement,
         setThemeMode,
+        setCurrencyCode,
+        setAppLock,
         completeOnboarding,
+        replaceState,
       }}
     >
       {children}
@@ -186,4 +306,24 @@ export function useTheme(): Theme {
     mode,
     setMode: setThemeMode,
   };
+}
+
+/** Categories (defaults + custom) bound to app state, with a fast id lookup */
+export function useCategories(): { all: Category[]; byId: (id?: string) => Category } {
+  const { state } = useApp();
+  return useMemo(() => {
+    const all = allCategories(state.customCategories);
+    const map = new Map(all.map((c) => [c.id, c]));
+    const other = map.get(OTHER_CATEGORY_ID)!;
+    return { all, byId: (id?: string) => (id && map.get(id)) || other };
+  }, [state.customCategories]);
+}
+
+/** Memoized person lookup by id */
+export function usePeopleById(): Map<string, Person> {
+  const { state } = useApp();
+  return useMemo(
+    () => new Map(state.people.map((p) => [p.id, p])),
+    [state.people],
+  );
 }

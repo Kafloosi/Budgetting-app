@@ -1,49 +1,58 @@
-import React, { useMemo, useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useTheme } from '../context/AppContext';
-import { font, radius, scale, spacing, ThemeColors } from '../theme';
+import React, { useState } from 'react';
+import { Alert, StyleSheet, Text, View } from 'react-native';
+import { font, spacing, ThemeColors } from '../theme';
 import { IncomeFrequency } from '../types';
-import { parseAmountToCents } from '../utils/money';
-import { Label, PrimaryButton, SegmentedControl } from './ui';
+import {
+  centsToInput,
+  currencySymbol,
+  FREQUENCY_OPTIONS,
+  parseAmountToCents,
+} from '../utils/money';
+import { Input, Label, PrimaryButton, Row, SegmentedControl, useThemedStyles } from './ui';
 
-export const FREQUENCY_OPTIONS: { value: IncomeFrequency; label: string }[] = [
-  { value: 'weekly', label: 'Weekly' },
-  { value: 'biweekly', label: 'Bi-weekly' },
-  { value: 'monthly', label: 'Monthly' },
-];
+export interface PersonFormValues {
+  name: string;
+  incomeCents: number;
+  incomeFrequency: IncomeFrequency;
+}
 
 /**
- * Form to add a person with their regular income. Used during onboarding
- * and in the People tab. Income may be 0 (skipped).
+ * Form to add or edit a person and their regular income. Used during
+ * onboarding, and in Settings for both creating and editing (editing hides
+ * the name field). Income may be 0 (skipped).
  */
 export function PersonForm({
   existingNames,
+  initial,
+  hideName,
   submitLabel,
   onSubmit,
 }: {
   existingNames: string[];
+  initial?: PersonFormValues;
+  /** Edit mode: keep the existing name, only change income */
+  hideName?: boolean;
   submitLabel: string;
-  onSubmit: (person: {
-    name: string;
-    incomeCents: number;
-    incomeFrequency: IncomeFrequency;
-  }) => void;
+  onSubmit: (person: PersonFormValues) => void;
 }) {
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [name, setName] = useState('');
-  const [income, setIncome] = useState('');
-  const [frequency, setFrequency] = useState<IncomeFrequency>('monthly');
+  const styles = useThemedStyles(makeStyles);
+  const [name, setName] = useState(initial?.name ?? '');
+  const [income, setIncome] = useState(centsToInput(initial?.incomeCents ?? 0));
+  const [frequency, setFrequency] = useState<IncomeFrequency>(
+    initial?.incomeFrequency ?? 'monthly',
+  );
 
   const submit = () => {
     const trimmed = name.trim();
-    if (!trimmed) {
-      Alert.alert('Missing name', 'Enter a name for this person.');
-      return;
-    }
-    if (existingNames.some((n) => n.toLowerCase() === trimmed.toLowerCase())) {
-      Alert.alert('Already exists', `"${trimmed}" is already in the list.`);
-      return;
+    if (!hideName) {
+      if (!trimmed) {
+        Alert.alert('Missing name', 'Enter a name for this person.');
+        return;
+      }
+      if (existingNames.some((n) => n.toLowerCase() === trimmed.toLowerCase())) {
+        Alert.alert('Already exists', `"${trimmed}" is already in the list.`);
+        return;
+      }
     }
     let incomeCents = 0;
     if (income.trim() !== '') {
@@ -55,36 +64,40 @@ export function PersonForm({
       incomeCents = parsed;
     }
     onSubmit({ name: trimmed, incomeCents, incomeFrequency: frequency });
-    setName('');
-    setIncome('');
-    setFrequency('monthly');
+    if (!initial) {
+      setName('');
+      setIncome('');
+      setFrequency('monthly');
+    }
   };
 
   return (
     <View>
-      <Label>Name</Label>
-      <TextInput
-        style={styles.input}
-        value={name}
-        onChangeText={setName}
-        placeholder="e.g. Anna"
-        placeholderTextColor={colors.textSecondary}
-        returnKeyType="done"
-      />
+      {!hideName ? (
+        <>
+          <Label>Name</Label>
+          <Input
+            style={styles.field}
+            value={name}
+            onChangeText={setName}
+            placeholder="e.g. Anna"
+            returnKeyType="done"
+          />
+        </>
+      ) : null}
       <Label>Income (used for income-based splitting)</Label>
-      <View style={styles.incomeRow}>
-        <Text style={styles.euro}>€</Text>
-        <TextInput
-          style={[styles.input, { flex: 1, marginBottom: 0 }]}
+      <Row style={styles.field}>
+        <Text style={styles.currency}>{currencySymbol()}</Text>
+        <Input
+          style={{ flex: 1 }}
           value={income}
           onChangeText={setIncome}
           placeholder="0,00 (optional)"
-          placeholderTextColor={colors.textSecondary}
           keyboardType="decimal-pad"
           returnKeyType="done"
         />
-      </View>
-      <View style={{ marginBottom: spacing.m }}>
+      </Row>
+      <View style={styles.field}>
         <SegmentedControl
           options={FREQUENCY_OPTIONS}
           value={frequency}
@@ -98,23 +111,10 @@ export function PersonForm({
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    input: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: radius.m,
-      paddingHorizontal: spacing.m,
-      paddingVertical: scale(10),
-      fontSize: font.body,
-      color: colors.text,
-      backgroundColor: colors.background,
+    field: {
       marginBottom: spacing.m,
     },
-    incomeRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: spacing.m,
-    },
-    euro: {
+    currency: {
       fontSize: font.medium,
       fontWeight: '700',
       color: colors.textSecondary,

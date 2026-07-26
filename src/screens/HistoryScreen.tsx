@@ -1,9 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import { Alert, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
-import { useApp, useTheme } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
 import { font, radius, spacing, scale, ThemeColors } from '../theme';
 import { formatCents, formatPeriod } from '../utils/money';
-import { Card, EmptyState, Row, ScreenTitle, SegmentedControl } from '../components/ui';
+import {
+  Card,
+  EmptyState,
+  Row,
+  screenChrome,
+  ScreenTitle,
+  SegmentedControl,
+  useThemedStyles,
+} from '../components/ui';
 import { PeriodType, SettlementRecord, SplitMethod } from '../types';
 
 const METHOD_LABEL: Record<SplitMethod, string> = {
@@ -14,8 +22,7 @@ const METHOD_LABEL: Record<SplitMethod, string> = {
 
 export default function HistoryScreen() {
   const { state, removeSettlement } = useApp();
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const styles = useThemedStyles(makeStyles);
   const [view, setView] = useState<PeriodType>('month');
 
   const sections = useMemo(() => {
@@ -114,8 +121,7 @@ export default function HistoryScreen() {
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background },
-    content: { padding: spacing.l, paddingBottom: scale(100) },
+    ...screenChrome(colors),
     sectionHeader: {
       fontSize: font.medium,
       fontWeight: '700',

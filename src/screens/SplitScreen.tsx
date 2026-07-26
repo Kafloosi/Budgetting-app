@@ -22,8 +22,10 @@ import {
   PeriodNav,
   PrimaryButton,
   Row,
+  screenChrome,
   ScreenTitle,
   SegmentedControl,
+  useThemedStyles,
 } from '../components/ui';
 import { PeriodType, SplitMethod } from '../types';
 
@@ -46,7 +48,7 @@ const METHOD_INFO: Record<SplitMethod, { title: string; description: string }> =
 export default function SplitScreen() {
   const { state, addSettlement } = useApp();
   const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const styles = useThemedStyles(makeStyles);
   const [periodType, setPeriodType] = useState<PeriodType>('month');
   const [period, setPeriod] = useState(currentPeriodKey('month'));
   const twoPeople = state.people.length === 2;
@@ -159,7 +161,7 @@ export default function SplitScreen() {
         <Card style={styles.warnCard}>
           <Text style={styles.warnText}>
             No incomes are set, so this splits equally for now. Set each
-            person's income in the People tab to split based on income.
+            person's income in the Settings tab to split based on income.
           </Text>
         </Card>
       ) : null}
@@ -256,8 +258,7 @@ export default function SplitScreen() {
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background },
-    content: { padding: spacing.l, paddingBottom: scale(100) },
+    ...screenChrome(colors),
     methodCard: {
       flexDirection: 'row',
       alignItems: 'center',
