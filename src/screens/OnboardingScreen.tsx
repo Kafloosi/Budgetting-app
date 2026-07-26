@@ -6,7 +6,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  View,
 } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { font, scale, spacing, ThemeColors } from '../theme';
@@ -14,6 +13,7 @@ import { FREQUENCY_LABEL, formatCents } from '../utils/money';
 import {
   Card,
   CurrencyChips,
+  Dot,
   Label,
   PrimaryButton,
   Row,
@@ -52,7 +52,7 @@ export default function OnboardingScreen() {
             </Label>
             {state.people.map((p) => (
               <Row key={p.id} style={styles.personRow}>
-                <View style={[styles.dot, { backgroundColor: p.color }]} />
+                <Dot color={p.color} />
                 <Text style={styles.personName}>{p.name}</Text>
                 <Text style={styles.personIncome}>
                   {p.incomeCents > 0
@@ -121,12 +121,6 @@ const makeStyles = (colors: ThemeColors) =>
     },
     personRow: {
       marginBottom: spacing.s,
-    },
-    dot: {
-      width: scale(10),
-      height: scale(10),
-      borderRadius: scale(5),
-      marginRight: spacing.s,
     },
     personName: {
       fontSize: font.body,

@@ -26,8 +26,10 @@ import {
 } from '../utils/forecast';
 import {
   Card,
+  Dot,
   EmptyState,
   Label,
+  MeterRow,
   PeriodNav,
   Row,
   screenChrome,
@@ -39,61 +41,6 @@ import {
 const TREND_MONTHS = 6;
 
 type StatsView = 'month' | 'year';
-
-/** A labeled horizontal meter: name, value text, and a filled progress bar */
-function MeterRow({
-  label,
-  dotColor,
-  right,
-  rightColor,
-  ratio,
-  barColor,
-  below,
-  belowColor,
-  styles,
-}: {
-  label: string;
-  dotColor?: string;
-  right: string;
-  rightColor?: string;
-  ratio: number;
-  barColor: string;
-  below?: string;
-  belowColor?: string;
-  styles: ReturnType<typeof makeStyles>;
-}) {
-  return (
-    <View style={styles.catRow}>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <Row style={{ flex: 1, marginRight: spacing.s }}>
-          {dotColor ? <View style={[styles.dot, { backgroundColor: dotColor }]} /> : null}
-          <Text style={styles.catName} numberOfLines={1}>
-            {label}
-          </Text>
-        </Row>
-        <Text style={[styles.catAmount, rightColor ? { color: rightColor } : null]}>
-          {right}
-        </Text>
-      </Row>
-      <View style={styles.track}>
-        <View
-          style={[
-            styles.fill,
-            {
-              backgroundColor: barColor,
-              width: `${Math.min(100, Math.max(2, ratio * 100))}%`,
-            },
-          ]}
-        />
-      </View>
-      {below ? (
-        <Text style={[styles.belowText, belowColor ? { color: belowColor } : null]}>
-          {below}
-        </Text>
-      ) : null}
-    </View>
-  );
-}
 
 /** Consistent "this is a Pro feature" message for locked cards */
 function ProLock({ what, styles }: { what: string; styles: ReturnType<typeof makeStyles> }) {
@@ -130,7 +77,7 @@ function DayBreakdown({
           const income = t.type === 'income';
           return (
             <Row key={t.id} style={styles.dayRow}>
-              <View style={[styles.dot, { backgroundColor: color }]} />
+              <Dot color={color} />
               <Text style={styles.catName} numberOfLines={1}>
                 {label}
               </Text>
@@ -232,7 +179,6 @@ function ForecastBody({
         rightColor={overspending ? colors.expense : undefined}
         ratio={forecast.spentCents / Math.max(1, forecast.projectedCents)}
         barColor={overspending ? colors.expense : colors.primary}
-        styles={styles}
       />
       <Text style={styles.forecastLine}>
         {formatCents(forecast.spentCents)} spent in {forecast.elapsedDays} of{' '}
@@ -573,7 +519,6 @@ export default function StatsScreen() {
                     right={`${formatCents(cents)}  ${Math.round(share * 100)}%`}
                     ratio={share}
                     barColor={colors.primary}
-                    styles={styles}
                   />
                 );
               })
@@ -591,8 +536,6 @@ export default function StatsScreen() {
                   ratio={cents / tags[0].cents}
                   barColor={colors.primary}
                   below={`${count} ${count === 1 ? 'entry' : 'entries'}`}
-                  belowColor={colors.textSecondary}
-                  styles={styles}
                 />
               ))}
               <Text style={styles.emptyText}>
@@ -609,30 +552,15 @@ export default function StatsScreen() {
                 <Text style={styles.emptyText}>No spending by anyone in this {view}.</Text>
               ) : (
                 byPerson.map(({ person, totals }) => (
-                  <View key={person.id} style={styles.catRow}>
-                    <Row style={{ justifyContent: 'space-between' }}>
-                      <Row style={{ flex: 1, marginRight: spacing.s }}>
-                        <View style={[styles.dot, { backgroundColor: person.color }]} />
-                        <Text style={styles.catName} numberOfLines={1}>
-                          {person.name}
-                        </Text>
-                      </Row>
-                      <Text style={styles.catAmount}>
-                        {formatCents(totals.expenseCents)}
-                      </Text>
-                    </Row>
-                    <View style={styles.track}>
-                      <View
-                        style={[
-                          styles.fill,
-                          {
-                            backgroundColor: person.color,
-                            width: `${Math.max(2, (totals.expenseCents / personExpenseMax) * 100)}%`,
-                          },
-                        ]}
-                      />
-                    </View>
-                    <Text style={styles.belowMuted}>
+                  <MeterRow
+                    key={person.id}
+                    label={person.name}
+                    dotColor={person.color}
+                    right={formatCents(totals.expenseCents)}
+                    ratio={totals.expenseCents / personExpenseMax}
+                    barColor={person.color}
+                    below={
+                      <Text style={styles.belowMuted}>
                       earned {formatCents(totals.incomeCents)} ·{' '}
                       <Text
                         style={{
@@ -640,10 +568,11 @@ export default function StatsScreen() {
                         }}
                       >
                         {totals.netCents >= 0 ? 'kept ' : 'short '}
-                        {formatCents(Math.abs(totals.netCents))}
+                          {formatCents(Math.abs(totals.netCents))}
+                        </Text>
                       </Text>
-                    </Text>
-                  </View>
+                    }
+                  />
                 ))
               )}
             </Card>
@@ -713,12 +642,6 @@ const makeStyles = (colors: ThemeColors) =>
       marginTop: spacing.s,
       lineHeight: font.small * 1.4,
     },
-    dot: {
-      width: scale(10),
-      height: scale(10),
-      borderRadius: scale(5),
-      marginRight: spacing.s,
-    },
     belowMuted: {
       marginTop: spacing.xs,
       fontSize: font.small,
@@ -729,9 +652,6 @@ const makeStyles = (colors: ThemeColors) =>
       paddingTop: spacing.s,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.border,
-    },
-    catRow: {
-      marginBottom: spacing.m,
     },
     netWorthValue: {
       fontSize: font.xlarge,
@@ -765,22 +685,5 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: font.body,
       fontWeight: '700',
       color: colors.text,
-    },
-    track: {
-      height: scale(8),
-      borderRadius: scale(4),
-      backgroundColor: colors.background,
-      marginTop: spacing.xs,
-      overflow: 'hidden',
-    },
-    fill: {
-      height: '100%',
-      borderRadius: scale(4),
-    },
-    belowText: {
-      marginTop: 2,
-      fontSize: font.small,
-      color: colors.expense,
-      fontWeight: '600',
     },
   });

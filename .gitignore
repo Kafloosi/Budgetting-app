@@ -41,5 +41,7 @@ yarn-error.*
 /android
 .gstack/
 
-# gstack is cloned + built locally by scripts/setup-gstack.sh (~1.6 GB)
-.claude/skills/gstack/
+# gstack is cloned + built locally by scripts/setup-gstack.sh (~1.6 GB).
+# The per-skill folders beside it are symlinks into that clone, so they are
+# generated too — committing them would leave broken links in a fresh checkout.
+.claude/skills/

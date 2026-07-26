@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import {
   Alert,
   Image,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useApp, usePeopleById, useTheme } from '../context/AppContext';
-import { darkColors, font, radius, scale, spacing, ThemeColors } from '../theme';
+import { font, radius, scale, spacing, ThemeColors } from '../theme';
 import {
   currentPeriodKey,
   formatCents,
@@ -21,8 +20,10 @@ import {
 import { computeSettlement, sharedExpensesForPeriod } from '../utils/split';
 import {
   Card,
+  Dot,
   Label,
   PeriodNav,
+  PhotoViewer,
   PrimaryButton,
   Row,
   screenChrome,
@@ -176,7 +177,7 @@ export default function SplitScreen() {
           <Label>Percentages</Label>
           {state.people.map((p) => (
             <Row key={p.id} style={styles.percentRow}>
-              <View style={[styles.dot, { backgroundColor: p.color }]} />
+              <Dot color={p.color} />
               <Text style={styles.percentName}>{p.name}</Text>
               <TextInput
                 style={styles.percentInput}
@@ -291,12 +292,7 @@ export default function SplitScreen() {
       <PrimaryButton label="Save calculation to history" onPress={save} disabled={!canSave} />
 
       {receiptUri ? (
-        <Modal visible animationType="fade" onRequestClose={() => setReceiptUri(null)}>
-          <Pressable style={styles.viewer} onPress={() => setReceiptUri(null)}>
-            <Image source={{ uri: receiptUri }} style={styles.viewerImage} resizeMode="contain" />
-            <Text style={styles.viewerHint}>Tap to close</Text>
-          </Pressable>
-        </Modal>
+        <PhotoViewer uri={receiptUri} onClose={() => setReceiptUri(null)} />
       ) : null}
     </ScrollView>
   );
@@ -340,7 +336,6 @@ const makeStyles = (colors: ThemeColors) =>
     },
     warnText: { fontSize: font.small, color: colors.text },
     percentRow: { marginBottom: spacing.s },
-    dot: { width: scale(10), height: scale(10), borderRadius: scale(5), marginRight: spacing.s },
     percentName: { flex: 1, fontSize: font.body, color: colors.text, fontWeight: '600' },
     percentInput: {
       width: scale(70),
@@ -409,13 +404,5 @@ const makeStyles = (colors: ThemeColors) =>
       marginTop: spacing.m,
       fontSize: font.small,
       color: colors.textSecondary,
-    },
-    viewer: { flex: 1, backgroundColor: '#000000', justifyContent: 'center' },
-    viewerImage: { width: '100%', height: '85%' },
-    viewerHint: {
-      color: darkColors.textSecondary,
-      textAlign: 'center',
-      fontSize: font.small,
-      paddingBottom: spacing.xl,
     },
   });

@@ -29,9 +29,11 @@ import { parseAmountToCents } from '../utils/money';
 import {
   Card,
   Chip,
+  Dot,
   EmptyState,
   Input,
   Label,
+  MeterRow,
   PeriodNav,
   PrimaryButton,
   Row,
@@ -226,7 +228,7 @@ export default function HomeScreen() {
             <Row>
               {person && multiPerson ? (
                 <>
-                  <View style={[styles.dot, { backgroundColor: person.color }]} />
+                  <Dot color={person.color} />
                   <Text style={styles.txMeta}>{person.name} · </Text>
                 </>
               ) : null}
@@ -331,7 +333,7 @@ export default function HomeScreen() {
                   const balance = balances.get(a.id) ?? 0;
                   return (
                     <Row key={a.id} style={styles.accountRow}>
-                      <View style={[styles.dot, { backgroundColor: a.color }]} />
+                      <Dot color={a.color} />
                       <Text style={styles.meterName} numberOfLines={1}>
                         {a.name}
                       </Text>
@@ -356,43 +358,28 @@ export default function HomeScreen() {
                   const ratio = limitCents > 0 ? spentCents / limitCents : 1;
                   const over = spentCents > limitCents;
                   return (
-                    <View key={category.id} style={styles.meterRow}>
-                      <Row style={{ justifyContent: 'space-between' }}>
-                        <Row style={{ flex: 1, marginRight: spacing.s }}>
-                          <View style={[styles.dot, { backgroundColor: category.color }]} />
-                          <Text style={styles.meterName} numberOfLines={1}>
-                            {category.name}
-                          </Text>
-                        </Row>
-                        <Text
-                          style={[styles.meterValue, over ? { color: colors.expense } : null]}
-                        >
-                          {formatCents(spentCents)} / {formatCents(limitCents)}
-                        </Text>
-                      </Row>
-                      <View style={styles.track}>
-                        <View
-                          style={[
-                            styles.fill,
-                            {
-                              backgroundColor: over
-                                ? colors.expense
-                                : ratio >= NEAR_THRESHOLD
-                                  ? colors.warning
-                                  : colors.income,
-                              width: `${Math.min(100, Math.max(2, ratio * 100))}%`,
-                            },
-                          ]}
-                        />
-                      </View>
-                      {carryCents !== 0 ? (
-                        <Text style={styles.carryNote}>
-                          {carryCents > 0
+                    <MeterRow
+                      key={category.id}
+                      label={category.name}
+                      dotColor={category.color}
+                      right={`${formatCents(spentCents)} / ${formatCents(limitCents)}`}
+                      rightColor={over ? colors.expense : undefined}
+                      ratio={ratio}
+                      barColor={
+                        over
+                          ? colors.expense
+                          : ratio >= NEAR_THRESHOLD
+                            ? colors.warning
+                            : colors.income
+                      }
+                      below={
+                        carryCents === 0
+                          ? undefined
+                          : carryCents > 0
                             ? `+${formatCents(carryCents)} carried over`
-                            : `${formatCents(carryCents)} carried over from overspending`}
-                        </Text>
-                      ) : null}
-                    </View>
+                            : `${formatCents(carryCents)} carried over from overspending`
+                      }
+                    />
                   );
                 })}
               </Card>
@@ -404,32 +391,20 @@ export default function HomeScreen() {
                 {state.goals.map((goal) => {
                   const { ratio, done } = goalProgress(goal);
                   return (
-                    <View key={goal.id} style={styles.meterRow}>
-                      <Row style={{ justifyContent: 'space-between' }}>
-                        <Text style={styles.meterName} numberOfLines={1}>
-                          {goal.name}
-                        </Text>
-                        <Text style={styles.meterValue}>
-                          {formatCents(goal.savedCents)} / {formatCents(goal.targetCents)}
-                        </Text>
-                      </Row>
-                      <View style={styles.track}>
-                        <View
-                          style={[
-                            styles.fill,
-                            {
-                              backgroundColor: done ? colors.income : colors.primary,
-                              width: `${Math.min(100, Math.max(2, ratio * 100))}%`,
-                            },
-                          ]}
-                        />
-                      </View>
-                      {!done ? (
-                        <Pressable onPress={() => setFundingGoal(goal)} hitSlop={8}>
-                          <Text style={styles.fundLink}>Add money</Text>
-                        </Pressable>
-                      ) : null}
-                    </View>
+                    <MeterRow
+                      key={goal.id}
+                      label={goal.name}
+                      right={`${formatCents(goal.savedCents)} / ${formatCents(goal.targetCents)}`}
+                      ratio={ratio}
+                      barColor={done ? colors.income : colors.primary}
+                      below={
+                        done ? undefined : (
+                          <Pressable onPress={() => setFundingGoal(goal)} hitSlop={8}>
+                            <Text style={styles.fundLink}>Add money</Text>
+                          </Pressable>
+                        )
+                      }
+                    />
                   );
                 })}
               </Card>
@@ -683,22 +658,8 @@ const makeStyles = (colors: ThemeColors) =>
     filterClear: { fontSize: font.body, fontWeight: '600', color: colors.expense },
     chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.s },
     accountRow: { marginBottom: spacing.s },
-    meterRow: { marginBottom: spacing.m },
     meterName: { flex: 1, fontSize: font.body, fontWeight: '600', color: colors.text },
     meterValue: { fontSize: font.body, fontWeight: '700', color: colors.text },
-    track: {
-      height: scale(8),
-      borderRadius: scale(4),
-      backgroundColor: colors.background,
-      marginTop: spacing.xs,
-      overflow: 'hidden',
-    },
-    fill: { height: '100%', borderRadius: scale(4) },
-    carryNote: {
-      marginTop: spacing.xs,
-      fontSize: font.small,
-      color: colors.textSecondary,
-    },
     fundLink: {
       marginTop: spacing.xs,
       fontSize: font.small,
@@ -746,12 +707,6 @@ const makeStyles = (colors: ThemeColors) =>
     txMeta: {
       fontSize: font.small,
       color: colors.textSecondary,
-    },
-    dot: {
-      width: scale(8),
-      height: scale(8),
-      borderRadius: scale(4),
-      marginRight: spacing.xs,
     },
     txAmount: {
       fontSize: font.body,

@@ -12,6 +12,13 @@ export interface ReleaseNote {
 /** Newest first */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.8231',
+    highlights: [
+      'Tidied up the app’s insides so future updates arrive faster and screens stay consistent with each other.',
+      'Nothing has moved: the only visible change is that the dots next to budgets and goals on the Home tab now match the ones everywhere else.',
+    ],
+  },
+  {
     version: '0.823',
     highlights: [
       'Quick templates — save an entry you make often and put it back in with one tap.',

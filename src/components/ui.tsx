@@ -1,6 +1,9 @@
 import React, { useMemo } from 'react';
 import {
+  Image,
+  Modal,
   Pressable,
+  StyleProp,
   StyleSheet,
   Text,
   TextInput,
@@ -10,7 +13,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { useApp, useTheme } from '../context/AppContext';
-import { font, radius, scale, spacing, ThemeColors } from '../theme';
+import { darkColors, font, radius, scale, spacing, ThemeColors } from '../theme';
 import {
   CURRENCIES,
   currentPeriodKey,
@@ -19,10 +22,29 @@ import {
   shiftPeriod,
 } from '../utils/money';
 
-/** Build a themed StyleSheet, re-created only when the theme changes. */
+/**
+ * Sheets are cached per (factory, theme) at module scope rather than per
+ * component instance, so the hundred-odd primitives on a screen share one
+ * built sheet instead of each constructing its own copy of the same rules.
+ */
+const sheetCache = new WeakMap<object, Map<ThemeColors, unknown>>();
+
+/** Build a themed StyleSheet, built once per theme and shared app-wide. */
 export function useThemedStyles<T>(factory: (colors: ThemeColors) => T): T {
   const { colors } = useTheme();
-  return useMemo(() => factory(colors), [colors, factory]);
+  return useMemo(() => {
+    let byTheme = sheetCache.get(factory);
+    if (!byTheme) {
+      byTheme = new Map();
+      sheetCache.set(factory, byTheme);
+    }
+    let sheet = byTheme.get(colors);
+    if (!sheet) {
+      sheet = factory(colors);
+      byTheme.set(colors, sheet);
+    }
+    return sheet as T;
+  }, [colors, factory]);
 }
 
 /** Standard container/content styles shared by every screen */
@@ -277,15 +299,110 @@ export function Row({
   style,
 }: {
   children: React.ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }) {
   return <View style={[stylesStatic.row, style]}>{children}</View>;
 }
 
+/**
+ * Small colour swatch marking a person, account, or category. Its geometry is
+ * theme-independent, so it stays hookless — these appear once per list row.
+ */
+export function Dot({ color }: { color: string }) {
+  return <View style={[stylesStatic.dot, { backgroundColor: color }]} />;
+}
+
+/**
+ * Horizontal progress bar. The fill is clamped to 2–100% so a barely-started
+ * meter still shows a sliver and an overspent one never runs past its track.
+ */
+export function Meter({ ratio, color }: { ratio: number; color: string }) {
+  const styles = useStyles();
+  return (
+    <View style={styles.track}>
+      <View
+        style={[
+          stylesStatic.fill,
+          { backgroundColor: color, width: `${Math.min(100, Math.max(2, ratio * 100))}%` },
+        ]}
+      />
+    </View>
+  );
+}
+
+/**
+ * A labelled {@link Meter}: name on the left, value on the right, bar beneath.
+ * `below` is the caption slot under the bar — a plain string gets the muted
+ * caption style, anything richer (a link, mixed colours) is rendered as given.
+ */
+export function MeterRow({
+  label,
+  dotColor,
+  right,
+  rightColor,
+  ratio,
+  barColor,
+  below,
+}: {
+  label: string;
+  dotColor?: string;
+  right: string;
+  rightColor?: string;
+  ratio: number;
+  barColor: string;
+  below?: React.ReactNode;
+}) {
+  const styles = useStyles();
+  return (
+    <View style={stylesStatic.meterRow}>
+      <Row style={{ justifyContent: 'space-between' }}>
+        <Row style={{ flex: 1, marginRight: spacing.s }}>
+          {dotColor ? <Dot color={dotColor} /> : null}
+          <Text style={styles.meterName} numberOfLines={1}>
+            {label}
+          </Text>
+        </Row>
+        <Text style={[styles.meterValue, rightColor ? { color: rightColor } : null]}>
+          {right}
+        </Text>
+      </Row>
+      <Meter ratio={ratio} color={barColor} />
+      {typeof below === 'string' ? <Text style={styles.belowText}>{below}</Text> : below}
+    </View>
+  );
+}
+
+/** Full-screen photo viewer for receipts; tap anywhere to close. */
+export function PhotoViewer({ uri, onClose }: { uri: string; onClose: () => void }) {
+  const styles = useStyles();
+  return (
+    <Modal visible animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.viewer} onPress={onClose}>
+        <Image source={{ uri }} style={styles.viewerImage} resizeMode="contain" />
+        <Text style={styles.viewerHint}>Tap to close</Text>
+      </Pressable>
+    </Modal>
+  );
+}
+
+/** Rules that read no theme colours, so they are built once for the app. */
 const stylesStatic = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  dot: {
+    width: scale(10),
+    height: scale(10),
+    borderRadius: scale(5),
+    marginRight: spacing.s,
+  },
+  fill: {
+    height: '100%',
+    borderRadius: scale(4),
+  },
+  meterRow: {
+    marginBottom: spacing.m,
   },
 });
 
@@ -415,5 +532,45 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
       textAlign: 'center',
       paddingHorizontal: spacing.xl,
+    },
+    track: {
+      height: scale(8),
+      borderRadius: scale(4),
+      backgroundColor: colors.background,
+      marginTop: spacing.xs,
+      overflow: 'hidden',
+    },
+    meterName: {
+      flex: 1,
+      fontSize: font.body,
+      fontWeight: '600',
+      color: colors.text,
+      marginRight: spacing.s,
+    },
+    meterValue: {
+      fontSize: font.body,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    belowText: {
+      marginTop: 2,
+      fontSize: font.small,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    viewer: {
+      flex: 1,
+      backgroundColor: '#000000',
+      justifyContent: 'center',
+    },
+    viewerImage: {
+      width: '100%',
+      height: '85%',
+    },
+    viewerHint: {
+      color: darkColors.textSecondary,
+      textAlign: 'center',
+      fontSize: font.small,
+      paddingBottom: spacing.xl,
     },
   });

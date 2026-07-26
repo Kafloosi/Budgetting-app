@@ -5,6 +5,21 @@ for a one- or two-feature drop, `+0.01` for several features moving towards
 the 1.0 release. Versions up to 0.813 are reconstructed from the commit
 history, and were set on the earlier ten-times-coarser ladder.
 
+## 0.8231
+
+Internal restructuring, no new features. The four pieces of UI that had been
+copy-pasted between screens — the coloured dot, the progress meter, the
+labelled meter row, and the full-screen receipt viewer — are now single
+components in `src/components/ui.tsx`, so the app cannot drift between
+surfaces again. The 1,326-line `SettingsScreen` is split into one component
+per section under `src/screens/settings/`, each owning its own state and
+reading the app context directly instead of taking props from one parent;
+`SettingsScreen` is now just the order the sections appear in. The six
+title/description/switch rows collapsed into a shared `ToggleRow`. Budget and
+goal dots on the Home tab are now the same size as everywhere else. The
+gstack skill symlinks are gitignored, since they point into a clone that
+isn't committed.
+
 ## 0.823
 
 Quick entry templates, tags on entries, budget carry-over between months, a

@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import {
   Alert,
   Image,
-  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -14,7 +13,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { pickReceiptPhoto } from '../utils/receipts';
 import { useApp, useTheme } from '../context/AppContext';
-import { darkColors, font, radius, scale, spacing, ThemeColors } from '../theme';
+import { font, radius, scale, spacing, ThemeColors } from '../theme';
 import {
   centsToInput,
   currencySymbol,
@@ -30,7 +29,7 @@ import {
   subcategoriesOf,
   topLevelCategories,
 } from '../categories';
-import { Card, Chip, Input, Label, PrimaryButton, SegmentedControl, useThemedStyles } from './ui';
+import { Card, Chip, Input, Label, PhotoViewer, PrimaryButton, SegmentedControl, useThemedStyles } from './ui';
 import { knownTags, normalizeTag } from '../utils/tags';
 import { IncomeFrequency, TransactionType } from '../types';
 
@@ -386,12 +385,7 @@ export function TransactionForm({
       </Card>
 
       {photoViewerOpen && photoUri ? (
-        <Modal visible animationType="fade" onRequestClose={() => setPhotoViewerOpen(false)}>
-          <Pressable style={styles.viewer} onPress={() => setPhotoViewerOpen(false)}>
-            <Image source={{ uri: photoUri }} style={styles.viewerImage} resizeMode="contain" />
-            <Text style={styles.viewerHint}>Tap to close</Text>
-          </Pressable>
-        </Modal>
+        <PhotoViewer uri={photoUri} onClose={() => setPhotoViewerOpen(false)} />
       ) : null}
 
       {showRepeat ? (
@@ -503,20 +497,5 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.expense,
       fontSize: font.body,
       fontWeight: '600',
-    },
-    viewer: {
-      flex: 1,
-      backgroundColor: '#000000',
-      justifyContent: 'center',
-    },
-    viewerImage: {
-      width: '100%',
-      height: '85%',
-    },
-    viewerHint: {
-      color: darkColors.textSecondary,
-      textAlign: 'center',
-      fontSize: font.small,
-      paddingBottom: spacing.xl,
     },
   });
