@@ -45,3 +45,11 @@ yarn-error.*
 # The per-skill folders beside it are symlinks into that clone, so they are
 # generated too — committing them would leave broken links in a fresh checkout.
 .claude/skills/
+
+# impeccable is installed per-environment with `npx impeccable install`, which
+# writes a skill copy and hooks for every harness it detects. Treated like
+# gstack above: reinstall it in a new environment rather than vendoring ~3 MB
+# of generated skill content per harness into the repo.
+.claude/settings.local.json
+.github/skills/
+.github/hooks/

@@ -14,6 +14,22 @@ It needs [bun](https://bun.sh). The clone lands in `.claude/skills/gstack`
 and is gitignored — a built install is ~1.6 GB, so it is rebuilt locally
 rather than committed. `/gstack-upgrade` also updates an existing install.
 
+# impeccable
+
+[impeccable](https://impeccable.style) provides the `/impeccable` design skill.
+
+Install or update it for this project with:
+
+```sh
+npx impeccable install   # then `/impeccable init` in the harness
+```
+
+Nothing it writes is committed — the skill copies (`.claude/skills/impeccable`,
+`.github/skills/impeccable`), the hooks, and `.claude/settings.local.json` are
+all gitignored and reinstalled per environment, the same as gstack. A freshly
+installed skill is not visible to the session that installed it; it registers
+on the next session.
+
 ## Web browsing
 
 Use the **`/browse`** skill from gstack for **all** web browsing.
