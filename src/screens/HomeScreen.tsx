@@ -21,7 +21,7 @@ import {
 } from '../utils/money';
 import { accountBalances, monthTotals, expenseCentsByCategory } from '../utils/aggregate';
 import { goalProgress } from '../utils/goals';
-import { rootCategoryId, topLevelCategories } from '../categories';
+import { topLevelCategories } from '../categories';
 import { NEAR_THRESHOLD } from '../utils/alerts';
 import { parseAmountToCents } from '../utils/money';
 import {
@@ -53,7 +53,7 @@ export default function HomeScreen() {
   const { state, removeTransaction, updateTransaction, addToGoal } = useApp();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { byId: categoryById } = useCategories();
+  const { byId: categoryById, rootOf } = useCategories();
   const personById = usePeopleById();
   const [month, setMonth] = useState(currentMonthKey());
   const [selectedPerson, setSelectedPerson] = useState<string>(COMBINED);
@@ -108,21 +108,17 @@ export default function HomeScreen() {
 
   const visibleTransactions = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return (allTimeSearch ? allTimeSorted : monthTransactions)
-      .filter((t) => typeFilter === 'all' || t.type === typeFilter)
-      .filter(
-        (t) =>
-          !categoryFilter ||
-          rootCategoryId(state.customCategories, t.categoryId) === categoryFilter,
-      )
-      .filter((t) => !minCents || t.amountCents >= minCents)
-      .filter((t) => !maxCents || t.amountCents <= maxCents)
-      .filter(
-        (t) =>
-          !query ||
-          t.note.toLowerCase().includes(query) ||
-          categoryById(t.categoryId).name.toLowerCase().includes(query),
+    return (allTimeSearch ? allTimeSorted : monthTransactions).filter((t) => {
+      if (typeFilter !== 'all' && t.type !== typeFilter) return false;
+      if (categoryFilter && rootOf(t.categoryId) !== categoryFilter) return false;
+      if (minCents && t.amountCents < minCents) return false;
+      if (maxCents && t.amountCents > maxCents) return false;
+      if (!query) return true;
+      return (
+        t.note.toLowerCase().includes(query) ||
+        categoryById(t.categoryId).name.toLowerCase().includes(query)
       );
+    });
   }, [
     allTimeSearch,
     allTimeSorted,
@@ -132,17 +128,21 @@ export default function HomeScreen() {
     categoryFilter,
     minCents,
     maxCents,
-    state.customCategories,
+    rootOf,
     categoryById,
   ]);
 
   const balances = useMemo(
-    () => accountBalances(state.accounts, state.transactions, state.accountTransfers),
+    () =>
+      state.accounts.length === 0
+        ? new Map<string, number>()
+        : accountBalances(state.accounts, state.transactions, state.accountTransfers),
     [state.accounts, state.transactions, state.accountTransfers],
   );
 
   // Budgets and goals live here, next to the money they describe
   const budgetRows = useMemo(() => {
+    if (Object.keys(state.budgets).length === 0) return [];
     const spentByCategory = expenseCentsByCategory(
       state.transactions,
       state.customCategories,

@@ -72,6 +72,33 @@ export function allCategories(custom: Category[]): Category[] {
   return [...DEFAULT_CATEGORIES, ...custom];
 }
 
+export interface CategoryIndex {
+  all: Category[];
+  byId: (id?: string) => Category;
+  /** Top-level id an entry rolls up into */
+  rootOf: (id?: string) => string;
+}
+
+/**
+ * Build the lookup once. Resolving a category per transaction through
+ * allCategories() would rebuild a 30+ element array and scan it linearly
+ * every time, which is the hot path for every report in the app.
+ */
+export function categoryIndex(custom: Category[]): CategoryIndex {
+  const all = allCategories(custom);
+  const byId = new Map(all.map((c) => [c.id, c]));
+  const other = byId.get(OTHER_CATEGORY_ID)!;
+  const resolve = (id?: string) => (id ? byId.get(id) ?? other : other);
+  return {
+    all,
+    byId: resolve,
+    rootOf: (id?: string) => {
+      const category = resolve(id);
+      return category.parentId ?? category.id;
+    },
+  };
+}
+
 export function categoryById(custom: Category[], id?: string): Category {
   const all = allCategories(custom);
   return (

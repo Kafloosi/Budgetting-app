@@ -1,14 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp, usePremium, useTheme } from '../context/AppContext';
-import { font, radius, scale, spacing, ThemeColors } from '../theme';
+import { font, scale, spacing, ThemeColors } from '../theme';
 import {
   currentPeriodKey,
   formatCents,
   formatMonth,
   formatPeriod,
   monthKey,
-  parseAmountToCents,
   shiftMonth,
 } from '../utils/money';
 import { rankedCategorySpending, totalsByPerson } from '../utils/aggregate';
@@ -22,17 +21,14 @@ import {
 import {
   Card,
   EmptyState,
-  Input,
   Label,
   PeriodNav,
-  PrimaryButton,
   Row,
   screenChrome,
   ScreenTitle,
   SegmentedControl,
   useThemedStyles,
 } from '../components/ui';
-import { Goal } from '../types';
 
 const TREND_MONTHS = 6;
 
@@ -180,13 +176,11 @@ function ForecastBody({
 }
 
 export default function StatsScreen() {
-  const { state, addToGoal } = useApp();
+  const { state } = useApp();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [view, setView] = useState<StatsView>('month');
   const [period, setPeriod] = useState(currentPeriodKey('month'));
-  const [fundingGoal, setFundingGoal] = useState<Goal | null>(null);
-  const [fundAmount, setFundAmount] = useState('');
 
   const changeView = (v: StatsView) => {
     setView(v);
@@ -267,17 +261,6 @@ export default function StatsScreen() {
   );
 
 
-  const confirmFund = () => {
-    if (!fundingGoal) return;
-    const cents = parseAmountToCents(fundAmount);
-    if (!cents) {
-      Alert.alert('Invalid amount', 'Enter an amount like 50');
-      return;
-    }
-    addToGoal(fundingGoal.id, cents);
-    setFundingGoal(null);
-    setFundAmount('');
-  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -460,33 +443,6 @@ export default function StatsScreen() {
         </>
       )}
 
-      {fundingGoal ? (
-        <Modal visible transparent animationType="fade" onRequestClose={() => setFundingGoal(null)}>
-          <View style={styles.modalBackdrop}>
-            <Card style={styles.modalCard}>
-              <Label>Add to “{fundingGoal.name}”</Label>
-              <Input
-                value={fundAmount}
-                onChangeText={setFundAmount}
-                placeholder="0,00"
-                keyboardType="decimal-pad"
-                returnKeyType="done"
-                autoFocus
-                onSubmitEditing={confirmFund}
-              />
-              <Row style={{ marginTop: spacing.m }}>
-                <PrimaryButton
-                  label="Cancel"
-                  onPress={() => setFundingGoal(null)}
-                  color={colors.textSecondary}
-                  style={{ flex: 1, marginRight: spacing.s }}
-                />
-                <PrimaryButton label="Add" onPress={confirmFund} style={{ flex: 1 }} />
-              </Row>
-            </Card>
-          </View>
-        </Modal>
-      ) : null}
     </ScrollView>
   );
 }
@@ -596,37 +552,5 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: font.small,
       color: colors.expense,
       fontWeight: '600',
-    },
-    goalRow: {
-      marginBottom: spacing.l,
-    },
-    goalDone: {
-      marginTop: spacing.xs,
-      fontSize: font.small,
-      color: colors.income,
-      fontWeight: '600',
-    },
-    fundButton: {
-      marginTop: spacing.s,
-      alignSelf: 'flex-start',
-      borderWidth: 1,
-      borderColor: colors.primary,
-      borderRadius: radius.m,
-      paddingHorizontal: spacing.m,
-      paddingVertical: scale(6),
-    },
-    fundLabel: {
-      color: colors.primary,
-      fontSize: font.body,
-      fontWeight: '700',
-    },
-    modalBackdrop: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      justifyContent: 'center',
-      padding: spacing.xl,
-    },
-    modalCard: {
-      marginBottom: 0,
     },
   });

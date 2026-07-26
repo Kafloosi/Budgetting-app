@@ -113,7 +113,10 @@ export function TransactionForm({
     () => topLevelCategories(state.customCategories),
     [state.customCategories],
   );
-  const selectedRootId = rootCategoryId(state.customCategories, categoryId);
+  const selectedRootId = useMemo(
+    () => rootCategoryId(state.customCategories, categoryId),
+    [state.customCategories, categoryId],
+  );
   const subcategories = useMemo(
     () => subcategoriesOf(state.customCategories, selectedRootId),
     [state.customCategories, selectedRootId],

@@ -5,7 +5,7 @@ import {
   NavPeriodType,
   Transaction,
 } from '../types';
-import { categoryById, rootCategoryId } from '../categories';
+import { categoryById, categoryIndex } from '../categories';
 import { monthKey, periodOfDate } from './money';
 
 export interface PeriodTotals {
@@ -41,10 +41,11 @@ export function expenseCentsByCategory(
   periodType: NavPeriodType,
   period: string,
 ): Map<string, number> {
+  const { rootOf } = categoryIndex(customCategories);
   const totals = new Map<string, number>();
   for (const t of transactions) {
     if (t.type !== 'expense' || periodOfDate(periodType, t.date) !== period) continue;
-    const id = rootCategoryId(customCategories, t.categoryId);
+    const id = rootOf(t.categoryId);
     totals.set(id, (totals.get(id) ?? 0) + t.amountCents);
   }
   return totals;

@@ -26,6 +26,8 @@ export interface EncryptedEnvelope {
   kdf: { name: 'PBKDF2-SHA256'; iterations: number; salt: string };
   iv: string;
   ciphertext: string;
+  /** SHA-256 of the plaintext, so a wrong password is detected exactly */
+  check: string;
 }
 
 export function isEncryptedBackup(text: string): boolean {
@@ -56,6 +58,7 @@ export function encryptBackup(plaintext: string, password: string): string {
     kdf: { name: 'PBKDF2-SHA256', iterations: ITERATIONS, salt: saltHex },
     iv: iv.toString(Hex),
     ciphertext: encrypted.ciphertext.toString(Base64),
+    check: CryptoJS.SHA256(plaintext).toString(Hex),
   };
   return JSON.stringify(envelope);
 }
@@ -71,9 +74,13 @@ export function decryptBackup(text: string, password: string): string | null {
       key,
       { iv: Hex.parse(envelope.iv) },
     );
-    // A wrong key yields garbage bytes, which fail UTF-8 decoding or parse
+    // A wrong key yields garbage; the digest tells us so definitively
     const plaintext = decrypted.toString(Utf8);
-    return plaintext.length > 0 ? plaintext : null;
+    if (plaintext.length === 0) return null;
+    if (envelope.check && CryptoJS.SHA256(plaintext).toString(Hex) !== envelope.check) {
+      return null;
+    }
+    return plaintext;
   } catch {
     return null;
   }

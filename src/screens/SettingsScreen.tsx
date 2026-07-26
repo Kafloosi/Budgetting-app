@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -36,11 +36,7 @@ import { ensureNotificationPermission } from '../utils/notifications';
 import { goalProgress } from '../utils/goals';
 import { accountBalances } from '../utils/aggregate';
 
-const ACCOUNT_KIND_LABEL: Record<AccountKind, string> = {
-  cash: 'Cash',
-  bank: 'Bank account',
-  savings: 'Savings',
-};
+
 import {
   PREMIUM_PRICE_LABEL,
   PREMIUM_SELLING_POINTS,
@@ -67,12 +63,26 @@ import { PersonForm } from '../components/PersonForm';
 import {
   backupFilename,
   csvFilename,
+  estimateBackupBytes,
   parseBackup,
   serializeBackup,
   transactionsToCsv,
 } from '../storage';
 import { decryptBackup, encryptBackup, isEncryptedBackup } from '../utils/backupCrypto';
+
+/** Above this, JS-side encryption takes long enough to look like a freeze */
+const MAX_ENCRYPTED_BACKUP_BYTES = 25 * 1024 * 1024;
 import { AccountKind, Category, IncomeFrequency, Person, RecurringRule } from '../types';
+
+const ACCOUNT_KIND_LABEL: Record<AccountKind, string> = {
+  cash: 'Cash',
+  bank: 'Bank account',
+  savings: 'Savings',
+};
+
+const ACCOUNT_KIND_OPTIONS = (
+  Object.entries(ACCOUNT_KIND_LABEL) as [AccountKind, string][]
+).map(([value, label]) => ({ value, label }));
 
 const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
   { value: 'light', label: 'Light' },
@@ -136,6 +146,7 @@ export default function SettingsScreen() {
     addAccount,
     removeAccount,
     addAccountTransfer,
+    removeAccountTransfer,
     addCategory,
     removeCategory,
     setBudget,
@@ -164,10 +175,9 @@ export default function SettingsScreen() {
   const [transferTo, setTransferTo] = useState<string | null>(null);
   const [transferAmount, setTransferAmount] = useState('');
 
-  const balances = accountBalances(
-    state.accounts,
-    state.transactions,
-    state.accountTransfers,
+  const balances = useMemo(
+    () => accountBalances(state.accounts, state.transactions, state.accountTransfers),
+    [state.accounts, state.transactions, state.accountTransfers],
   );
 
   const submitAccount = () => {
@@ -180,6 +190,9 @@ export default function SettingsScreen() {
     setAccName('');
     setAccOpening('');
   };
+
+  const accountName = (id: string) =>
+    state.accounts.find((a) => a.id === id)?.name ?? 'unknown';
 
   const submitTransfer = () => {
     const cents = parseAmountToCents(transferAmount);
@@ -480,6 +493,16 @@ export default function SettingsScreen() {
   };
 
   const exportBackup = async () => {
+    // Encryption runs in JavaScript, so a huge photo payload would block the
+    // UI for many seconds. Warn before that happens rather than freezing.
+    const estimate = estimateBackupBytes(state, includePhotos);
+    if (backupPassword.trim() && estimate > MAX_ENCRYPTED_BACKUP_BYTES) {
+      Alert.alert(
+        'Backup too large to encrypt',
+        'Encrypting this many receipt photos would freeze the app. Export without photos, or without a password.',
+      );
+      return;
+    }
     setBusy('Preparing backup…');
     try {
       const plain = await serializeBackup(state, includePhotos);
@@ -649,11 +672,7 @@ export default function SettingsScreen() {
         />
         <View style={{ marginBottom: spacing.m }}>
           <SegmentedControl
-            options={[
-              { value: 'cash', label: 'Cash' },
-              { value: 'bank', label: 'Bank' },
-              { value: 'savings', label: 'Savings' },
-            ]}
+            options={ACCOUNT_KIND_OPTIONS}
             value={accKind}
             onChange={setAccKind}
           />
@@ -701,6 +720,22 @@ export default function SettingsScreen() {
               keyboardType="decimal-pad"
             />
             <PrimaryButton label="Transfer" onPress={submitTransfer} />
+            {state.accountTransfers.slice(0, 10).map((t) => (
+              <Row key={t.id} style={styles.listRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowTitle}>
+                    {formatCents(t.amountCents)}
+                  </Text>
+                  <Text style={styles.mutedSmall}>
+                    {accountName(t.fromAccountId)} → {accountName(t.toAccountId)} ·{' '}
+                    {formatDate(t.date)}
+                  </Text>
+                </View>
+                <Pressable onPress={() => removeAccountTransfer(t.id)} hitSlop={8}>
+                  <Text style={styles.danger}>Remove</Text>
+                </Pressable>
+              </Row>
+            ))}
             <Text style={[styles.mutedSmall, { marginTop: spacing.s }]}>
               Transfers move money between your own accounts — they are not
               income or expenses, so they never affect your budgets.
@@ -787,9 +822,9 @@ export default function SettingsScreen() {
       <Label>Monthly budgets</Label>
       <Card>
         <Text style={[styles.mutedSmall, { marginBottom: spacing.m }]}>
-          Set a monthly spending limit per category. Progress shows in the Stats tab.
+          Set a monthly spending limit per category. Subcategory spending counts towards its parent. Progress shows on the Home tab.
         </Text>
-        {categories.map((c) => (
+        {topCategories.map((c) => (
           <BudgetRow
             key={c.id}
             category={c}
@@ -872,7 +907,7 @@ export default function SettingsScreen() {
         )}
         <PrimaryButton label="Add goal" onPress={submitGoal} />
         <Text style={[styles.mutedSmall, { marginTop: spacing.s }]}>
-          Track progress and add money in the Stats tab.
+          Track progress and add money on the Home tab.
         </Text>
       </Card>
 
@@ -1000,8 +1035,8 @@ export default function SettingsScreen() {
           copy of your data anywhere to leak, and nothing that identifies you.
         </Text>
         <Text style={[styles.mutedSmall, { marginTop: spacing.m }]}>
-          Backups and receipt photos you export leave the app unencrypted, so
-          store them somewhere you trust.
+          Anything you export leaves the app readable unless you set a backup
+          password under Data below.
         </Text>
         <PrimaryButton
           label="Delete all data"

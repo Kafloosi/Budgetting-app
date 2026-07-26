@@ -143,17 +143,24 @@ export async function serializeBackup(
   includePhotos: boolean,
 ): Promise<string> {
   const receipts = includePhotos ? await readReceiptPayload(state.transactions) : undefined;
-  return JSON.stringify(
-    {
-      app: BACKUP_APP_TAG,
-      version: BACKUP_VERSION,
-      exportedAt: new Date().toISOString(),
-      state,
-      receipts,
-    },
-    null,
-    2,
-  );
+  // Not pretty-printed: a photo-bearing backup is mostly base64, where
+  // indentation costs real memory for no readability gain.
+  return JSON.stringify({
+    app: BACKUP_APP_TAG,
+    version: BACKUP_VERSION,
+    exportedAt: new Date().toISOString(),
+    state,
+    receipts,
+  });
+}
+
+/** Roughly how large a photo-bearing backup will be, in bytes */
+export function estimateBackupBytes(state: AppState, includePhotos: boolean): number {
+  const base = JSON.stringify(state).length;
+  if (!includePhotos) return base;
+  // base64 inflates by ~4/3; photos dominate everything else
+  const photos = state.transactions.filter((t) => t.photoUri).length;
+  return base + photos * 500_000 * 1.37;
 }
 
 /**

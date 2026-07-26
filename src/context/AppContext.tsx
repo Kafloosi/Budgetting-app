@@ -12,7 +12,6 @@ import {
   AccountKind,
   AccountTransfer,
   AppState,
-  Category,
   Goal,
   IncomeFrequency,
   Person,
@@ -22,9 +21,10 @@ import {
 } from '../types';
 import { emptyState, loadState, saveState, wipeAllData } from '../storage';
 import {
-  allCategories,
+  categoryById,
+  categoryIndex,
+  CategoryIndex,
   FREE_CUSTOM_CATEGORY_LIMIT,
-  OTHER_CATEGORY_ID,
 } from '../categories';
 import { makeId, setActiveCurrency } from '../utils/money';
 import { catchUp } from '../utils/catchup';
@@ -91,11 +91,14 @@ interface AppContextValue {
   dismissUndo: () => void;
 }
 
-/** A deletion that can still be taken back, shown by the undo snackbar */
+/**
+ * A deletion that can still be taken back, shown by the undo snackbar.
+ * `revert` patches the *current* state rather than restoring a snapshot, so
+ * undoing a delete never rolls back anything that happened after it.
+ */
 export interface UndoAction {
   label: string;
-  /** Restores the exact state that existed before the deletion */
-  restore: AppState;
+  revert: (state: AppState) => AppState;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -213,8 +216,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * snackbar can take back any destructive action — not just entries.
    */
   const deleteWithUndo = useCallback(
-    (label: string, apply: (s: AppState) => AppState) => {
-      setUndoAction({ label, restore: stateRef.current });
+    (label: string, apply: (s: AppState) => AppState, revert: (s: AppState) => AppState) => {
+      setUndoAction({ label, revert });
       setState(apply);
     },
     [],
@@ -222,13 +225,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const removePerson = useCallback(
     (id: string) => {
-      const person = stateRef.current.people.find((p) => p.id === id);
-      deleteWithUndo(`Removed ${person?.name ?? 'person'}`, (s) => ({
-        ...s,
-        people: s.people.filter((p) => p.id !== id),
-        transactions: s.transactions.filter((t) => t.personId !== id),
-        recurring: s.recurring.filter((r) => r.personId !== id),
-      }));
+      const prior = stateRef.current;
+      const person = prior.people.find((p) => p.id === id);
+      if (!person) return;
+      const theirTransactions = prior.transactions.filter((t) => t.personId === id);
+      const theirRules = prior.recurring.filter((r) => r.personId === id);
+      deleteWithUndo(
+        `Removed ${person.name}`,
+        (s) => ({
+          ...s,
+          people: s.people.filter((p) => p.id !== id),
+          transactions: s.transactions.filter((t) => t.personId !== id),
+          recurring: s.recurring.filter((r) => r.personId !== id),
+        }),
+        (s) => ({
+          ...s,
+          people: [...s.people, person],
+          transactions: [...theirTransactions, ...s.transactions],
+          recurring: [...s.recurring, ...theirRules],
+        }),
+      );
     },
     [deleteWithUndo],
   );
@@ -257,19 +273,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const removeTransaction = useCallback(
     (id: string) => {
       const removed = stateRef.current.transactions.find((t) => t.id === id);
-      deleteWithUndo(`Deleted ${removed?.note || 'entry'}`, (s) => ({
-        ...s,
-        transactions: s.transactions.filter((t) => t.id !== id),
-      }));
+      if (!removed) return;
+      deleteWithUndo(
+        `Deleted ${removed.note || 'entry'}`,
+        (s) => ({ ...s, transactions: s.transactions.filter((t) => t.id !== id) }),
+        (s) => ({ ...s, transactions: [removed, ...s.transactions] }),
+      );
     },
     [deleteWithUndo],
   );
 
   const undo = useCallback(() => {
     if (!undoAction) return;
-    const restored = undoAction.restore;
+    const { revert } = undoAction;
     setUndoAction(null);
-    setState(restored);
+    setState(revert);
   }, [undoAction]);
 
   const dismissUndo = useCallback(() => setUndoAction(null), []);
@@ -293,14 +311,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const removeRecurring = useCallback(
     (id: string, deleteTransactions: boolean) => {
-      const rule = stateRef.current.recurring.find((r) => r.id === id);
-      deleteWithUndo(`Stopped ${rule?.note || 'repeat'}`, (s) => ({
-        ...s,
-        recurring: s.recurring.filter((r) => r.id !== id),
-        transactions: deleteTransactions
-          ? s.transactions.filter((t) => t.recurringId !== id)
-          : s.transactions,
-      }));
+      const prior = stateRef.current;
+      const rule = prior.recurring.find((r) => r.id === id);
+      if (!rule) return;
+      const generated = deleteTransactions
+        ? prior.transactions.filter((t) => t.recurringId === id)
+        : [];
+      deleteWithUndo(
+        `Stopped ${rule.note || 'repeat'}`,
+        (s) => ({
+          ...s,
+          recurring: s.recurring.filter((r) => r.id !== id),
+          transactions: deleteTransactions
+            ? s.transactions.filter((t) => t.recurringId !== id)
+            : s.transactions,
+        }),
+        (s) => ({
+          ...s,
+          recurring: [...s.recurring, rule],
+          transactions: [...generated, ...s.transactions],
+        }),
+      );
     },
     [deleteWithUndo],
   );
@@ -315,7 +346,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  /** Returns false when the free custom-category allowance is used up */
   const addAccount = useCallback(
     (name: string, kind: AccountKind, openingCents: number) => {
       setState((s) => ({
@@ -338,17 +368,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Entries keep their history; they just stop being tied to an account
   const removeAccount = useCallback(
     (id: string) => {
-      const account = stateRef.current.accounts.find((a) => a.id === id);
-      deleteWithUndo(`Removed ${account?.name ?? 'account'}`, (s) => ({
-        ...s,
-        accounts: s.accounts.filter((a) => a.id !== id),
-        accountTransfers: s.accountTransfers.filter(
-          (t) => t.fromAccountId !== id && t.toAccountId !== id,
-        ),
-        transactions: s.transactions.map((t) =>
-          t.accountId === id ? { ...t, accountId: undefined } : t,
-        ),
-      }));
+      const prior = stateRef.current;
+      const account = prior.accounts.find((a) => a.id === id);
+      if (!account) return;
+      const itsTransfers = prior.accountTransfers.filter(
+        (t) => t.fromAccountId === id || t.toAccountId === id,
+      );
+      const linkedIds = new Set(
+        prior.transactions.filter((t) => t.accountId === id).map((t) => t.id),
+      );
+      deleteWithUndo(
+        `Removed ${account.name}`,
+        (s) => ({
+          ...s,
+          accounts: s.accounts.filter((a) => a.id !== id),
+          accountTransfers: s.accountTransfers.filter(
+            (t) => t.fromAccountId !== id && t.toAccountId !== id,
+          ),
+          transactions: s.transactions.map((t) =>
+            t.accountId === id ? { ...t, accountId: undefined } : t,
+          ),
+        }),
+        (s) => ({
+          ...s,
+          accounts: [...s.accounts, account],
+          accountTransfers: [...itsTransfers, ...s.accountTransfers],
+          transactions: s.transactions.map((t) =>
+            linkedIds.has(t.id) ? { ...t, accountId: id } : t,
+          ),
+        }),
+      );
     },
     [deleteWithUndo],
   );
@@ -362,14 +411,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const removeAccountTransfer = useCallback(
     (id: string) => {
-      deleteWithUndo('Removed transfer', (s) => ({
-        ...s,
-        accountTransfers: s.accountTransfers.filter((t) => t.id !== id),
-      }));
+      const transfer = stateRef.current.accountTransfers.find((t) => t.id === id);
+      if (!transfer) return;
+      deleteWithUndo(
+        'Removed transfer',
+        (s) => ({
+          ...s,
+          accountTransfers: s.accountTransfers.filter((t) => t.id !== id),
+        }),
+        (s) => ({ ...s, accountTransfers: [transfer, ...s.accountTransfers] }),
+      );
     },
     [deleteWithUndo],
   );
 
+  /** Returns false when the free custom-category allowance is used up */
   const addCategory = useCallback((name: string, parentId?: string): boolean => {
     const current = stateRef.current;
     if (
@@ -393,22 +449,54 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return true;
   }, []);
 
-  const removeCategory = useCallback((id: string) => {
-    setState((s) => {
-      const { [id]: _removed, ...budgets } = s.budgets;
-      return {
-        ...s,
-        customCategories: s.customCategories.filter(
-          (c) => c.id !== id && c.parentId !== id,
-        ),
-        budgets,
-        // Entries in the removed category fall back to "Other"
-        transactions: s.transactions.map((t) =>
-          t.categoryId === id ? { ...t, categoryId: undefined } : t,
-        ),
-      };
-    });
-  }, []);
+  const removeCategory = useCallback(
+    (id: string) => {
+      const prior = stateRef.current;
+      // Removing a parent takes its subcategories with it, so budgets and
+      // entries filed under any of them have to be cleaned up together.
+      const doomed = new Set([
+        id,
+        ...prior.customCategories.filter((c) => c.parentId === id).map((c) => c.id),
+      ]);
+      const removedCategories = prior.customCategories.filter((c) => doomed.has(c.id));
+      if (removedCategories.length === 0) return;
+      const removedBudgets = Object.fromEntries(
+        Object.entries(prior.budgets).filter(([key]) => doomed.has(key)),
+      );
+      const refiledIds = new Set(
+        prior.transactions
+          .filter((t) => t.categoryId && doomed.has(t.categoryId))
+          .map((t) => t.id),
+      );
+      const priorCategoryOf = new Map(
+        prior.transactions.map((t) => [t.id, t.categoryId]),
+      );
+      deleteWithUndo(
+        `Removed ${categoryById(prior.customCategories, id).name}`,
+        (s) => ({
+          ...s,
+          customCategories: s.customCategories.filter((c) => !doomed.has(c.id)),
+          budgets: Object.fromEntries(
+            Object.entries(s.budgets).filter(([key]) => !doomed.has(key)),
+          ),
+          transactions: s.transactions.map((t) =>
+            refiledIds.has(t.id) ? { ...t, categoryId: undefined } : t,
+          ),
+        }),
+        (s) => ({
+          ...s,
+          customCategories: [...s.customCategories, ...removedCategories],
+          budgets: { ...s.budgets, ...removedBudgets },
+          transactions: s.transactions.map((t) =>
+            refiledIds.has(t.id)
+              ? { ...t, categoryId: priorCategoryOf.get(t.id) }
+              : t,
+          ),
+        }),
+      );
+    },
+    [deleteWithUndo],
+  );
 
   const setBudget = useCallback((categoryId: string, limitCents: number | null) => {
     setState((s) => {
@@ -464,10 +552,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const removeGoal = useCallback(
     (id: string) => {
       const goal = stateRef.current.goals.find((g) => g.id === id);
-      deleteWithUndo(`Removed ${goal?.name ?? 'goal'}`, (s) => ({
-        ...s,
-        goals: s.goals.filter((g) => g.id !== id),
-      }));
+      if (!goal) return;
+      deleteWithUndo(
+        `Removed ${goal.name}`,
+        (s) => ({ ...s, goals: s.goals.filter((g) => g.id !== id) }),
+        (s) => ({ ...s, goals: [...s.goals, goal] }),
+      );
     },
     [deleteWithUndo],
   );
@@ -600,14 +690,9 @@ export function useTheme(): Theme {
 }
 
 /** Categories (defaults + custom) bound to app state, with a fast id lookup */
-export function useCategories(): { all: Category[]; byId: (id?: string) => Category } {
+export function useCategories(): CategoryIndex {
   const { state } = useApp();
-  return useMemo(() => {
-    const all = allCategories(state.customCategories);
-    const map = new Map(all.map((c) => [c.id, c]));
-    const other = map.get(OTHER_CATEGORY_ID)!;
-    return { all, byId: (id?: string) => (id && map.get(id)) || other };
-  }, [state.customCategories]);
+  return useMemo(() => categoryIndex(state.customCategories), [state.customCategories]);
 }
 
 /** Whether a Budget Pro feature is available to this user */
