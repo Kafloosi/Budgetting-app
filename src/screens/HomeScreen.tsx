@@ -19,7 +19,7 @@ import {
   formatMonth,
   monthKey,
 } from '../utils/money';
-import { monthTotals, expenseCentsByCategory } from '../utils/aggregate';
+import { accountBalances, monthTotals, expenseCentsByCategory } from '../utils/aggregate';
 import { goalProgress } from '../utils/goals';
 import { rootCategoryId, topLevelCategories } from '../categories';
 import { NEAR_THRESHOLD } from '../utils/alerts';
@@ -135,6 +135,11 @@ export default function HomeScreen() {
     state.customCategories,
     categoryById,
   ]);
+
+  const balances = useMemo(
+    () => accountBalances(state.accounts, state.transactions, state.accountTransfers),
+    [state.accounts, state.transactions, state.accountTransfers],
+  );
 
   // Budgets and goals live here, next to the money they describe
   const budgetRows = useMemo(() => {
@@ -295,6 +300,31 @@ export default function HomeScreen() {
                 </View>
               </Row>
             </Card>
+
+            {state.accounts.length > 0 ? (
+              <Card>
+                <Label>Accounts</Label>
+                {state.accounts.map((a) => {
+                  const balance = balances.get(a.id) ?? 0;
+                  return (
+                    <Row key={a.id} style={styles.accountRow}>
+                      <View style={[styles.dot, { backgroundColor: a.color }]} />
+                      <Text style={styles.meterName} numberOfLines={1}>
+                        {a.name}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.meterValue,
+                          { color: balance >= 0 ? colors.text : colors.expense },
+                        ]}
+                      >
+                        {formatCents(balance)}
+                      </Text>
+                    </Row>
+                  );
+                })}
+              </Card>
+            ) : null}
 
             {budgetRows.length > 0 ? (
               <Card>
@@ -601,6 +631,7 @@ const makeStyles = (colors: ThemeColors) =>
     filterToggle: { fontSize: font.body, fontWeight: '600', color: colors.primary },
     filterClear: { fontSize: font.body, fontWeight: '600', color: colors.expense },
     chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.s },
+    accountRow: { marginBottom: spacing.s },
     meterRow: { marginBottom: spacing.m },
     meterName: { flex: 1, fontSize: font.body, fontWeight: '600', color: colors.text },
     meterValue: { fontSize: font.body, fontWeight: '700', color: colors.text },

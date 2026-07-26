@@ -29,10 +29,18 @@ import {
   formatDate,
   formatMonth,
   parseAmountToCents,
+  todayIso,
   shiftMonth,
 } from '../utils/money';
 import { ensureNotificationPermission } from '../utils/notifications';
 import { goalProgress } from '../utils/goals';
+import { accountBalances } from '../utils/aggregate';
+
+const ACCOUNT_KIND_LABEL: Record<AccountKind, string> = {
+  cash: 'Cash',
+  bank: 'Bank account',
+  savings: 'Savings',
+};
 import {
   PREMIUM_PRICE_LABEL,
   PREMIUM_SELLING_POINTS,
@@ -64,7 +72,7 @@ import {
   transactionsToCsv,
 } from '../storage';
 import { decryptBackup, encryptBackup, isEncryptedBackup } from '../utils/backupCrypto';
-import { Category, IncomeFrequency, Person, RecurringRule } from '../types';
+import { AccountKind, Category, IncomeFrequency, Person, RecurringRule } from '../types';
 
 const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
   { value: 'light', label: 'Light' },
@@ -125,6 +133,9 @@ export default function SettingsScreen() {
     removePerson,
     removeRecurring,
     updateRecurring,
+    addAccount,
+    removeAccount,
+    addAccountTransfer,
     addCategory,
     removeCategory,
     setBudget,
@@ -146,6 +157,49 @@ export default function SettingsScreen() {
   const personById = usePeopleById();
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [accName, setAccName] = useState('');
+  const [accKind, setAccKind] = useState<AccountKind>('bank');
+  const [accOpening, setAccOpening] = useState('');
+  const [transferFrom, setTransferFrom] = useState<string | null>(null);
+  const [transferTo, setTransferTo] = useState<string | null>(null);
+  const [transferAmount, setTransferAmount] = useState('');
+
+  const balances = accountBalances(
+    state.accounts,
+    state.transactions,
+    state.accountTransfers,
+  );
+
+  const submitAccount = () => {
+    const name = accName.trim();
+    if (!name) {
+      Alert.alert('Missing name', 'Give the account a name, e.g. Checking.');
+      return;
+    }
+    addAccount(name, accKind, accOpening.trim() ? parseAmountToCents(accOpening) ?? 0 : 0);
+    setAccName('');
+    setAccOpening('');
+  };
+
+  const submitTransfer = () => {
+    const cents = parseAmountToCents(transferAmount);
+    if (!transferFrom || !transferTo || transferFrom === transferTo || !cents) {
+      Alert.alert(
+        'Incomplete transfer',
+        'Pick two different accounts and an amount like 250.',
+      );
+      return;
+    }
+    addAccountTransfer({
+      fromAccountId: transferFrom,
+      toAccountId: transferTo,
+      amountCents: cents,
+      date: todayIso(),
+      note: '',
+    });
+    setTransferAmount('');
+  };
+
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [ruleAmount, setRuleAmount] = useState('');
   const [ruleNote, setRuleNote] = useState('');
@@ -562,6 +616,98 @@ export default function SettingsScreen() {
           onSubmit={addPerson}
         />
       </Card>
+
+      <Label>Accounts</Label>
+      <Card>
+        {state.accounts.map((a) => (
+          <Row key={a.id} style={styles.listRow}>
+            <View style={[styles.dot, { backgroundColor: a.color }]} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle}>{a.name}</Text>
+              <Text style={styles.mutedSmall}>{ACCOUNT_KIND_LABEL[a.kind]}</Text>
+            </View>
+            <Text style={[styles.rowTitle, { marginRight: spacing.l }]}>
+              {formatCents(balances.get(a.id) ?? 0)}
+            </Text>
+            <Pressable onPress={() => removeAccount(a.id)} hitSlop={8}>
+              <Text style={styles.danger}>Remove</Text>
+            </Pressable>
+          </Row>
+        ))}
+        <Input
+          style={{ marginBottom: spacing.s }}
+          value={accName}
+          onChangeText={setAccName}
+          placeholder="Account name, e.g. Checking"
+        />
+        <Input
+          style={{ marginBottom: spacing.s }}
+          value={accOpening}
+          onChangeText={setAccOpening}
+          placeholder="Starting balance (optional)"
+          keyboardType="decimal-pad"
+        />
+        <View style={{ marginBottom: spacing.m }}>
+          <SegmentedControl
+            options={[
+              { value: 'cash', label: 'Cash' },
+              { value: 'bank', label: 'Bank' },
+              { value: 'savings', label: 'Savings' },
+            ]}
+            value={accKind}
+            onChange={setAccKind}
+          />
+        </View>
+        <PrimaryButton label="Add account" onPress={submitAccount} />
+        <Text style={[styles.mutedSmall, { marginTop: spacing.s }]}>
+          Entries can then say which account they came from, and balances show
+          on the Home tab.
+        </Text>
+      </Card>
+
+      {state.accounts.length > 1 ? (
+        <>
+          <Label>Transfer between accounts</Label>
+          <Card>
+            <Label>From</Label>
+            <View style={styles.chipsWrap}>
+              {state.accounts.map((a) => (
+                <Chip
+                  key={a.id}
+                  label={a.name}
+                  selected={transferFrom === a.id}
+                  onPress={() => setTransferFrom(a.id)}
+                  color={a.color}
+                />
+              ))}
+            </View>
+            <Label>To</Label>
+            <View style={styles.chipsWrap}>
+              {state.accounts.map((a) => (
+                <Chip
+                  key={a.id}
+                  label={a.name}
+                  selected={transferTo === a.id}
+                  onPress={() => setTransferTo(a.id)}
+                  color={a.color}
+                />
+              ))}
+            </View>
+            <Input
+              style={{ marginBottom: spacing.m }}
+              value={transferAmount}
+              onChangeText={setTransferAmount}
+              placeholder="Amount"
+              keyboardType="decimal-pad"
+            />
+            <PrimaryButton label="Transfer" onPress={submitTransfer} />
+            <Text style={[styles.mutedSmall, { marginTop: spacing.s }]}>
+              Transfers move money between your own accounts — they are not
+              income or expenses, so they never affect your budgets.
+            </Text>
+          </Card>
+        </>
+      ) : null}
 
       <Label>Recurring entries</Label>
       <Card>

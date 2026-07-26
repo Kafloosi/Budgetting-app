@@ -1,4 +1,10 @@
-import { Category, NavPeriodType, Transaction } from '../types';
+import {
+  Account,
+  AccountTransfer,
+  Category,
+  NavPeriodType,
+  Transaction,
+} from '../types';
 import { categoryById, rootCategoryId } from '../categories';
 import { monthKey, periodOfDate } from './money';
 
@@ -76,4 +82,29 @@ export function rankedCategorySpending(
   return [...expenseCentsByCategory(transactions, customCategories, periodType, period)]
     .map(([id, cents]) => ({ category: categoryById(customCategories, id), cents }))
     .sort((a, b) => b.cents - a.cents);
+}
+
+/**
+ * Current balance of every account: its opening amount, plus income landing
+ * in it, minus expenses paid from it, adjusted for transfers in and out.
+ * Entries without an account simply don't affect any balance.
+ */
+export function accountBalances(
+  accounts: Account[],
+  transactions: Transaction[],
+  transfers: AccountTransfer[],
+): Map<string, number> {
+  const balances = new Map(accounts.map((a) => [a.id, a.openingCents]));
+  const add = (id: string | undefined, cents: number) => {
+    if (!id || !balances.has(id)) return;
+    balances.set(id, balances.get(id)! + cents);
+  };
+  for (const t of transactions) {
+    add(t.accountId, t.type === 'income' ? t.amountCents : -t.amountCents);
+  }
+  for (const t of transfers) {
+    add(t.fromAccountId, -t.amountCents);
+    add(t.toAccountId, t.amountCents);
+  }
+  return balances;
 }

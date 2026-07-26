@@ -16,6 +16,8 @@ const BACKUP_VERSION = 2;
 
 export const emptyState: AppState = {
   people: [],
+  accounts: [],
+  accountTransfers: [],
   transactions: [],
   settlements: [],
   recurring: [],
@@ -54,6 +56,8 @@ function migrate(parsed: Partial<AppState>): AppState {
 
   return {
     people,
+    accounts: parsed.accounts ?? [],
+    accountTransfers: parsed.accountTransfers ?? [],
     transactions: parsed.transactions ?? [],
     settlements,
     recurring: parsed.recurring ?? [],

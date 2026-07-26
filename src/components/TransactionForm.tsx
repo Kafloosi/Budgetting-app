@@ -44,6 +44,7 @@ export interface TransactionValues {
   shared: boolean;
   categoryId?: string;
   photoUri?: string;
+  accountId?: string;
   repeat: RepeatOption;
 }
 
@@ -84,6 +85,9 @@ export function TransactionForm({
   const [showPicker, setShowPicker] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | undefined>(initial?.photoUri);
   const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
+  const [accountId, setAccountId] = useState<string | undefined>(
+    initial?.accountId ?? state.accounts[0]?.id,
+  );
 
   const pickPhoto = async (fromCamera: boolean) => {
     try {
@@ -134,6 +138,7 @@ export function TransactionForm({
       shared: isExpense && (multiPerson ? shared : false),
       categoryId: isExpense ? categoryId : undefined,
       photoUri,
+      accountId: state.accounts.length > 0 ? accountId : undefined,
       repeat,
     });
   };
@@ -235,6 +240,23 @@ export function TransactionForm({
               </View>
             </>
           ) : null}
+        </Card>
+      ) : null}
+
+      {state.accounts.length > 0 ? (
+        <Card>
+          <Label>{isExpense ? 'Paid from' : 'Received in'}</Label>
+          <View style={styles.chipsWrap}>
+            {state.accounts.map((a) => (
+              <Chip
+                key={a.id}
+                label={a.name}
+                selected={accountId === a.id}
+                onPress={() => setAccountId(a.id)}
+                color={a.color}
+              />
+            ))}
+          </View>
         </Card>
       ) : null}
 

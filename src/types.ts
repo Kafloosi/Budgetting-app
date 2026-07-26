@@ -11,6 +11,28 @@ export interface Person {
   incomeFrequency: IncomeFrequency;
 }
 
+export type AccountKind = 'cash' | 'bank' | 'savings';
+
+/** Where money physically sits */
+export interface Account {
+  id: string;
+  name: string;
+  kind: AccountKind;
+  color: string;
+  /** Balance before the first tracked entry */
+  openingCents: number;
+}
+
+/** Money moved between two accounts — neither income nor expense */
+export interface AccountTransfer {
+  id: string;
+  fromAccountId: string;
+  toAccountId: string;
+  amountCents: number;
+  date: string;
+  note: string;
+}
+
 export interface Category {
   id: string;
   name: string;
@@ -37,6 +59,8 @@ export interface Transaction {
   recurringId?: string;
   /** Local file URI of an attached receipt photo */
   photoUri?: string;
+  /** Which account the money came from or landed in */
+  accountId?: string;
 }
 
 /** A repeating income or expense (rent, salary, subscription, …) */
@@ -132,6 +156,8 @@ export type BudgetAlertLog = Record<string, 'near' | 'over'>;
 
 export interface AppState {
   people: Person[];
+  accounts: Account[];
+  accountTransfers: AccountTransfer[];
   transactions: Transaction[];
   settlements: SettlementRecord[];
   recurring: RecurringRule[];

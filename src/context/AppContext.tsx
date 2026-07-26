@@ -9,6 +9,8 @@ import React, {
 } from 'react';
 import { AppState as RNAppState, useColorScheme } from 'react-native';
 import {
+  AccountKind,
+  AccountTransfer,
   AppState,
   Category,
   Goal,
@@ -79,6 +81,10 @@ interface AppContextValue {
   /** Erase every stored trace of the user's data */
   eraseAllData: () => Promise<void>;
   updateRecurring: (id: string, patch: Partial<Omit<RecurringRule, 'id'>>) => void;
+  addAccount: (name: string, kind: AccountKind, openingCents: number) => void;
+  removeAccount: (id: string) => void;
+  addAccountTransfer: (t: Omit<AccountTransfer, 'id'>) => void;
+  removeAccountTransfer: (id: string) => void;
   /** Most recent reversible deletion, offered by the undo snackbar */
   undoAction: UndoAction | null;
   undo: () => void;
@@ -310,6 +316,60 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   /** Returns false when the free custom-category allowance is used up */
+  const addAccount = useCallback(
+    (name: string, kind: AccountKind, openingCents: number) => {
+      setState((s) => ({
+        ...s,
+        accounts: [
+          ...s.accounts,
+          {
+            id: makeId(),
+            name: name.trim(),
+            kind,
+            color: personColors[(s.accounts.length + 2) % personColors.length],
+            openingCents,
+          },
+        ],
+      }));
+    },
+    [],
+  );
+
+  // Entries keep their history; they just stop being tied to an account
+  const removeAccount = useCallback(
+    (id: string) => {
+      const account = stateRef.current.accounts.find((a) => a.id === id);
+      deleteWithUndo(`Removed ${account?.name ?? 'account'}`, (s) => ({
+        ...s,
+        accounts: s.accounts.filter((a) => a.id !== id),
+        accountTransfers: s.accountTransfers.filter(
+          (t) => t.fromAccountId !== id && t.toAccountId !== id,
+        ),
+        transactions: s.transactions.map((t) =>
+          t.accountId === id ? { ...t, accountId: undefined } : t,
+        ),
+      }));
+    },
+    [deleteWithUndo],
+  );
+
+  const addAccountTransfer = useCallback((transfer: Omit<AccountTransfer, 'id'>) => {
+    setState((s) => ({
+      ...s,
+      accountTransfers: [{ ...transfer, id: makeId() }, ...s.accountTransfers],
+    }));
+  }, []);
+
+  const removeAccountTransfer = useCallback(
+    (id: string) => {
+      deleteWithUndo('Removed transfer', (s) => ({
+        ...s,
+        accountTransfers: s.accountTransfers.filter((t) => t.id !== id),
+      }));
+    },
+    [deleteWithUndo],
+  );
+
   const addCategory = useCallback((name: string, parentId?: string): boolean => {
     const current = stateRef.current;
     if (
@@ -478,6 +538,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         addRecurring,
         removeRecurring,
         updateRecurring,
+        addAccount,
+        removeAccount,
+        addAccountTransfer,
+        removeAccountTransfer,
         addCategory,
         removeCategory,
         setBudget,
