@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { pickReceiptPhoto } from '../utils/receipts';
-import { useApp, useCategories, useTheme } from '../context/AppContext';
+import { useApp, useTheme } from '../context/AppContext';
 import { darkColors, font, radius, scale, spacing, ThemeColors } from '../theme';
 import {
   centsToInput,
@@ -24,7 +24,12 @@ import {
   parseAmountToCents,
   todayIso,
 } from '../utils/money';
-import { OTHER_CATEGORY_ID } from '../categories';
+import {
+  OTHER_CATEGORY_ID,
+  rootCategoryId,
+  subcategoriesOf,
+  topLevelCategories,
+} from '../categories';
 import { Card, Chip, Label, PrimaryButton, SegmentedControl, useThemedStyles } from './ui';
 import { IncomeFrequency, TransactionType } from '../types';
 
@@ -62,7 +67,6 @@ export function TransactionForm({
   const { state } = useApp();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { all: categories } = useCategories();
   const today = useMemo(() => todayIso(), []);
 
   const [type, setType] = useState<TransactionType>(initial?.type ?? 'expense');
@@ -101,6 +105,15 @@ export function TransactionForm({
   const multiPerson = state.people.length > 1;
   const isExpense = type === 'expense';
   const accent = isExpense ? colors.expense : colors.income;
+  const topCategories = useMemo(
+    () => topLevelCategories(state.customCategories),
+    [state.customCategories],
+  );
+  const selectedRootId = rootCategoryId(state.customCategories, categoryId);
+  const subcategories = useMemo(
+    () => subcategoriesOf(state.customCategories, selectedRootId),
+    [state.customCategories, selectedRootId],
+  );
 
   const submit = () => {
     const cents = parseAmountToCents(amount);
@@ -191,15 +204,37 @@ export function TransactionForm({
         <Card>
           <Label>Category</Label>
           <View style={styles.chipsWrap}>
-            {categories.map((c) => (
+            {topCategories.map((c) => (
               <Chip
                 key={c.id}
-                label={`${c.emoji} ${c.name}`}
-                selected={categoryId === c.id}
+                label={c.name}
+                selected={selectedRootId === c.id}
                 onPress={() => setCategoryId(c.id)}
+                color={c.color}
               />
             ))}
           </View>
+          {subcategories.length > 0 ? (
+            <>
+              <Label>Subcategory</Label>
+              <View style={styles.chipsWrap}>
+                <Chip
+                  label="All"
+                  selected={categoryId === selectedRootId}
+                  onPress={() => setCategoryId(selectedRootId)}
+                />
+                {subcategories.map((c) => (
+                  <Chip
+                    key={c.id}
+                    label={c.name}
+                    selected={categoryId === c.id}
+                    onPress={() => setCategoryId(c.id)}
+                    color={c.color}
+                  />
+                ))}
+              </View>
+            </>
+          ) : null}
         </Card>
       ) : null}
 
@@ -250,7 +285,7 @@ export function TransactionForm({
           </View>
         ) : (
           <Pressable style={styles.dateButton} onPress={addPhoto}>
-            <Text style={styles.dateText}>📷  Add photo</Text>
+            <Text style={styles.dateText}>Add photo</Text>
           </Pressable>
         )}
       </Card>

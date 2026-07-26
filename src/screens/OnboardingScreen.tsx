@@ -38,7 +38,6 @@ export default function OnboardingScreen() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.hello}>👋</Text>
         <Text style={styles.title}>Welcome!</Text>
         <Text style={styles.subtitle}>
           Who is this budget for? Add one person to track your own money, or

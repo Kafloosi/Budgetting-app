@@ -118,7 +118,6 @@ export default function HistoryScreen() {
         )}
         ListEmptyComponent={
           <EmptyState
-            icon="📒"
             message={
               view === 'month'
                 ? 'No saved monthly calculations yet. Settle a month in the Split tab and save it to see it here.'

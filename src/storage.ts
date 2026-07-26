@@ -3,6 +3,8 @@ import { AppState, Person, SettlementRecord } from './types';
 import { catchUp } from './utils/catchup';
 import { todayIso } from './utils/money';
 import { categoryById } from './categories';
+import { reconcileReceipts } from './utils/receipts';
+import { personColors } from './theme';
 
 const STORAGE_KEY = 'budget-app-state-v1';
 const BACKUP_APP_TAG = 'budgetting-app';
@@ -24,6 +26,7 @@ export const emptyState: AppState = {
     appLock: false,
     budgetAlerts: false,
     settleReminder: false,
+    weeklyDigest: false,
     premium: false,
   },
 };
@@ -50,8 +53,13 @@ function migrate(parsed: Partial<AppState>): AppState {
     transactions: parsed.transactions ?? [],
     settlements,
     recurring: parsed.recurring ?? [],
-    customCategories: parsed.customCategories ?? [],
     budgets: parsed.budgets ?? {},
+    // Categories gained colors and subcategories; old emoji-based custom
+    // ones keep working by taking a color from the shared palette.
+    customCategories: (parsed.customCategories ?? []).map((c, i) => ({
+      ...c,
+      color: c.color ?? personColors[i % personColors.length],
+    })),
     goals: parsed.goals ?? [],
     budgetAlertLog: parsed.budgetAlertLog ?? {},
     settings: {
@@ -62,6 +70,7 @@ function migrate(parsed: Partial<AppState>): AppState {
       appLock: parsed.settings?.appLock ?? false,
       budgetAlerts: parsed.settings?.budgetAlerts ?? false,
       settleReminder: parsed.settings?.settleReminder ?? false,
+      weeklyDigest: parsed.settings?.weeklyDigest ?? false,
       premium: parsed.settings?.premium ?? false,
     },
   };
@@ -89,6 +98,21 @@ export async function readState(): Promise<AppState> {
 /** Read state and advance it to now. Used by the app, which persists it. */
 export async function loadState(): Promise<AppState> {
   return catchUp(await readStoredState());
+}
+
+/**
+ * Erase everything this app stored: the state blob and every receipt file.
+ * Nothing is kept elsewhere — there is no account, no server copy, and no
+ * analytics — so after this the app holds nothing about the user.
+ */
+export async function wipeAllData(): Promise<void> {
+  // An empty reference list means every stored receipt is unreferenced
+  await reconcileReceipts([]).catch(() => {});
+  try {
+    await AsyncStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Nothing stored yet.
+  }
 }
 
 export async function saveState(state: AppState): Promise<void> {

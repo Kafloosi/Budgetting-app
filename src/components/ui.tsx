@@ -260,11 +260,10 @@ export function CurrencyChips({ limit }: { limit?: number }) {
   );
 }
 
-export function EmptyState({ icon, message }: { icon: string; message: string }) {
+export function EmptyState({ message }: { message: string }) {
   const styles = useStyles();
   return (
     <View style={styles.empty}>
-      <Text style={styles.emptyIcon}>{icon}</Text>
       <Text style={styles.emptyText}>{message}</Text>
     </View>
   );

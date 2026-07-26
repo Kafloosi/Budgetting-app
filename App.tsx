@@ -76,13 +76,14 @@ function Root() {
     );
   }
 
-  const tabs: { key: Tab; label: string; icon: string }[] = [
-    { key: 'home', label: 'Home', icon: '⌂' },
-    { key: 'stats', label: 'Stats', icon: '📊' },
-    { key: 'add', label: 'Add', icon: '+' },
-    ...(showSplit ? [{ key: 'split' as Tab, label: 'Split', icon: '⇄' }] : []),
-    { key: 'history', label: 'History', icon: '🕘' },
-    { key: 'settings', label: 'Settings', icon: '⚙️' },
+  // Home always sits dead center; the slot beside it is Split when there is
+  // someone to split with, and the Add shortcut otherwise.
+  const tabs: { key: Tab; label: string }[] = [
+    { key: 'stats', label: 'Stats' },
+    { key: 'history', label: 'History' },
+    { key: 'home', label: 'Home' },
+    showSplit ? { key: 'split', label: 'Split' } : { key: 'add', label: 'Add' },
+    { key: 'settings', label: 'Settings' },
   ];
 
   return (
@@ -97,30 +98,28 @@ function Root() {
         {activeTab === 'settings' && <SettingsScreen />}
       </View>
 
+      {activeTab === 'home' ? (
+        <Pressable
+          style={[styles.addButton, { bottom: Math.max(insets.bottom, spacing.s) + scale(56) }]}
+          onPress={() => setTab('add')}
+        >
+          <Text style={styles.addButtonText}>+</Text>
+        </Pressable>
+      ) : null}
+
       <UndoSnackbar />
 
       <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, spacing.s) }]}>
         {tabs.map((t) => {
           const active = activeTab === t.key;
-          if (t.key === 'add') {
-            return (
-              <Pressable key={t.key} style={styles.tabItem} onPress={() => setTab('add')}>
-                <View style={styles.addButton}>
-                  <Text style={styles.addButtonText}>+</Text>
-                </View>
-              </Pressable>
-            );
-          }
           return (
             <Pressable key={t.key} style={styles.tabItem} onPress={() => setTab(t.key)}>
-              <Text
+              <View
                 style={[
-                  styles.tabIcon,
-                  { color: active ? colors.primary : colors.textSecondary },
+                  styles.tabMarker,
+                  { backgroundColor: active ? colors.primary : 'transparent' },
                 ]}
-              >
-                {t.icon}
-              </Text>
+              />
               <Text
                 style={[
                   styles.tabLabel,
@@ -172,24 +171,26 @@ const makeStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    tabIcon: {
-      fontSize: font.large,
-      lineHeight: font.large + scale(4),
+    tabMarker: {
+      width: scale(16),
+      height: scale(3),
+      borderRadius: scale(2),
+      marginBottom: scale(5),
     },
     tabLabel: {
       fontSize: font.small,
-      marginTop: 1,
     },
     addButton: {
-      width: scale(48),
-      height: scale(48),
-      borderRadius: scale(24),
+      position: 'absolute',
+      right: spacing.l,
+      width: scale(52),
+      height: scale(52),
+      borderRadius: scale(26),
       backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
-      marginTop: -scale(18),
-      shadowColor: colors.primary,
-      shadowOpacity: 0.35,
+      shadowColor: '#000',
+      shadowOpacity: 0.25,
       shadowRadius: 8,
       shadowOffset: { width: 0, height: 4 },
       elevation: 6,

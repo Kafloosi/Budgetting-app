@@ -18,13 +18,18 @@ import {
   SettlementRecord,
   Transaction,
 } from '../types';
-import { emptyState, loadState, saveState } from '../storage';
-import { allCategories, OTHER_CATEGORY_ID } from '../categories';
+import { emptyState, loadState, saveState, wipeAllData } from '../storage';
+import {
+  allCategories,
+  FREE_CUSTOM_CATEGORY_LIMIT,
+  OTHER_CATEGORY_ID,
+} from '../categories';
 import { makeId, setActiveCurrency } from '../utils/money';
 import { catchUp } from '../utils/catchup';
 import { dueBudgetAlerts, pruneAlertLog, sendBudgetNotifications } from '../utils/alerts';
 import { reconcileReceipts } from '../utils/receipts';
-import { syncSettleReminder } from '../utils/reminders';
+import { syncSettleReminder, syncWeeklyDigest } from '../utils/reminders';
+import { weekDigest, weekDigestMessage } from '../utils/digest';
 import { isUnlocked, PremiumFeature } from '../utils/premium';
 import { refreshWidget } from '../utils/widget';
 import {
@@ -52,7 +57,7 @@ interface AppContextValue {
   removeTransaction: (id: string) => void;
   addRecurring: (rule: Omit<RecurringRule, 'id' | 'lastAppliedDate'>) => void;
   removeRecurring: (id: string, deleteTransactions: boolean) => void;
-  addCategory: (name: string, emoji: string) => void;
+  addCategory: (name: string, parentId?: string) => boolean;
   removeCategory: (id: string) => void;
   setBudget: (categoryId: string, limitCents: number | null) => void;
   addSettlement: (s: Omit<SettlementRecord, 'id' | 'createdAt'>) => void;
@@ -66,10 +71,13 @@ interface AppContextValue {
   setAppLock: (enabled: boolean) => void;
   setBudgetAlerts: (enabled: boolean) => void;
   setSettleReminder: (enabled: boolean) => void;
+  setWeeklyDigest: (enabled: boolean) => void;
   setPremium: (unlocked: boolean) => void;
   completeOnboarding: () => void;
   /** Replace the whole state (used by backup import) */
   replaceState: (next: AppState) => void;
+  /** Erase every stored trace of the user's data */
+  eraseAllData: () => Promise<void>;
   /** Last deleted entry, offered for undo by the snackbar */
   undoableTransaction: Transaction | null;
   undoRemoveTransaction: () => void;
@@ -112,6 +120,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loaded) syncSettleReminder(wantsSettleReminder);
   }, [loaded, wantsSettleReminder]);
+
+  // The weekly digest carries real numbers, so re-arm it whenever spending
+  // changes. Stored data only moves while the app is open, so the summary
+  // scheduled here is still accurate when it fires on Sunday.
+  const digestEnabled = state.settings.weeklyDigest;
+  const transactions = state.transactions;
+  useEffect(() => {
+    if (!loaded) return;
+    syncWeeklyDigest(digestEnabled, weekDigestMessage(weekDigest(transactions)));
+  }, [loaded, digestEnabled, transactions]);
 
   useEffect(() => {
     if (!loadedRef.current) return;
@@ -252,14 +270,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
-  const addCategory = useCallback((name: string, emoji: string) => {
+  /** Returns false when the free custom-category allowance is used up */
+  const addCategory = useCallback((name: string, parentId?: string): boolean => {
+    const current = stateRef.current;
+    if (
+      !isUnlocked(current.settings, 'categories') &&
+      current.customCategories.length >= FREE_CUSTOM_CATEGORY_LIMIT
+    ) {
+      return false;
+    }
     setState((s) => ({
       ...s,
       customCategories: [
         ...s.customCategories,
-        { id: makeId(), name: name.trim(), emoji: emoji.trim() || '🏷️' },
+        {
+          id: makeId(),
+          name: name.trim(),
+          color: personColors[s.customCategories.length % personColors.length],
+          parentId,
+        },
       ],
     }));
+    return true;
   }, []);
 
   const removeCategory = useCallback((id: string) => {
@@ -267,7 +299,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const { [id]: _removed, ...budgets } = s.budgets;
       return {
         ...s,
-        customCategories: s.customCategories.filter((c) => c.id !== id),
+        customCategories: s.customCategories.filter(
+          (c) => c.id !== id && c.parentId !== id,
+        ),
         budgets,
         // Entries in the removed category fall back to "Other"
         transactions: s.transactions.map((t) =>
@@ -361,12 +395,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setState((s) => ({ ...s, settings: { ...s.settings, settleReminder: enabled } }));
   }, []);
 
+  const setWeeklyDigest = useCallback((enabled: boolean) => {
+    setState((s) => ({ ...s, settings: { ...s.settings, weeklyDigest: enabled } }));
+  }, []);
+
   const setPremium = useCallback((unlocked: boolean) => {
     setState((s) => ({ ...s, settings: { ...s.settings, premium: unlocked } }));
   }, []);
 
   const completeOnboarding = useCallback(() => {
     setState((s) => ({ ...s, settings: { ...s.settings, onboarded: true } }));
+  }, []);
+
+  const eraseAllData = useCallback(async () => {
+    await wipeAllData();
+    setState(emptyState);
   }, []);
 
   // Expects normalized state (from storage.parseBackup)
@@ -402,9 +445,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setAppLock,
         setBudgetAlerts,
         setSettleReminder,
+        setWeeklyDigest,
         setPremium,
         completeOnboarding,
         replaceState,
+        eraseAllData,
         undoableTransaction,
         undoRemoveTransaction,
         dismissUndo,

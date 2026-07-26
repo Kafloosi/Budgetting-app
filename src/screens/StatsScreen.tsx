@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useApp, useCategories, usePremium, useTheme } from '../context/AppContext';
+import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useApp, usePremium, useTheme } from '../context/AppContext';
 import { font, radius, scale, spacing, ThemeColors } from '../theme';
 import {
   currentPeriodKey,
@@ -11,11 +11,14 @@ import {
   parseAmountToCents,
   shiftMonth,
 } from '../utils/money';
-import { rankedCategorySpending } from '../utils/aggregate';
-import { goalProgress } from '../utils/goals';
-import { NEAR_THRESHOLD } from '../utils/alerts';
+import { rankedCategorySpending, totalsByPerson } from '../utils/aggregate';
 import { computeInsights } from '../utils/insights';
-import { Forecast, forecastCurrentMonth } from '../utils/forecast';
+import {
+  CategoryForecast,
+  Forecast,
+  forecastCategories,
+  forecastCurrentMonth,
+} from '../utils/forecast';
 import {
   Card,
   EmptyState,
@@ -38,6 +41,7 @@ type StatsView = 'month' | 'year';
 /** A labeled horizontal meter: name, value text, and a filled progress bar */
 function MeterRow({
   label,
+  dotColor,
   right,
   rightColor,
   ratio,
@@ -47,6 +51,7 @@ function MeterRow({
   styles,
 }: {
   label: string;
+  dotColor?: string;
   right: string;
   rightColor?: string;
   ratio: number;
@@ -58,9 +63,12 @@ function MeterRow({
   return (
     <View style={styles.catRow}>
       <Row style={{ justifyContent: 'space-between' }}>
-        <Text style={styles.catName} numberOfLines={1}>
-          {label}
-        </Text>
+        <Row style={{ flex: 1, marginRight: spacing.s }}>
+          {dotColor ? <View style={[styles.dot, { backgroundColor: dotColor }]} /> : null}
+          <Text style={styles.catName} numberOfLines={1}>
+            {label}
+          </Text>
+        </Row>
         <Text style={[styles.catAmount, rightColor ? { color: rightColor } : null]}>
           {right}
         </Text>
@@ -89,17 +97,19 @@ function MeterRow({
 function ProLock({ what, styles }: { what: string; styles: ReturnType<typeof makeStyles> }) {
   return (
     <Text style={styles.emptyText}>
-      🔒 {what} are part of Budget Pro — unlock it in the Settings tab.
+      {what} are part of Budget Pro — unlock it in the Settings tab.
     </Text>
   );
 }
 
 function ForecastBody({
   forecast,
+  categoryForecasts,
   colors,
   styles,
 }: {
   forecast: Forecast;
+  categoryForecasts: CategoryForecast[];
   colors: ThemeColors;
   styles: ReturnType<typeof makeStyles>;
 }) {
@@ -134,8 +144,8 @@ function ForecastBody({
           ]}
         >
           {overspending
-            ? `⚠️ At this pace you'll overspend income by ${formatCents(forecast.projectedOverspendCents)}. Keep it under ${formatCents(forecast.safeDailyCents)} per day to stay even.`
-            : `✅ On track — you can spend ${formatCents(forecast.safeDailyCents)} per day and still stay within income.`}
+            ? `At this pace you'll overspend income by ${formatCents(forecast.projectedOverspendCents)}. Keep it under ${formatCents(forecast.safeDailyCents)} per day to stay even.`
+            : `On track — you can spend ${formatCents(forecast.safeDailyCents)} per day and still stay within income.`}
         </Text>
       ) : null}
       {forecast.budgetTotalCents > 0 ? (
@@ -146,6 +156,25 @@ function ForecastBody({
             : 'projected to stay within'}
         </Text>
       ) : null}
+      {categoryForecasts.length > 0 ? (
+        <View style={styles.forecastCategories}>
+          {categoryForecasts.map((c) => (
+            <Text
+              key={c.category.id}
+              style={[
+                styles.forecastLine,
+                c.projectedOverCents > 0 ? { color: colors.expense } : null,
+              ]}
+            >
+              {c.category.name}: heading for{' '}
+              {formatCents(c.projectedCents)} of {formatCents(c.limitCents)}
+              {c.projectedOverCents > 0
+                ? ` — ${formatCents(c.projectedOverCents)} over`
+                : ' — on track'}
+            </Text>
+          ))}
+        </View>
+      ) : null}
     </>
   );
 }
@@ -154,7 +183,6 @@ export default function StatsScreen() {
   const { state, addToGoal } = useApp();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { byId: categoryById } = useCategories();
   const [view, setView] = useState<StatsView>('month');
   const [period, setPeriod] = useState(currentPeriodKey('month'));
   const [fundingGoal, setFundingGoal] = useState<Goal | null>(null);
@@ -187,6 +215,25 @@ export default function StatsScreen() {
     [state.transactions, state.customCategories, view, period],
   );
 
+  // Per-person comparison only says anything with more than one person
+  const multiPerson = state.people.length > 1;
+  const byPerson = useMemo(() => {
+    if (!multiPerson) return [];
+    const totals = totalsByPerson(state.transactions, view, period);
+    return state.people
+      .map((person) => ({
+        person,
+        totals: totals.get(person.id) ?? {
+          incomeCents: 0,
+          expenseCents: 0,
+          netCents: 0,
+        },
+      }))
+      .sort((a, b) => b.totals.expenseCents - a.totals.expenseCents);
+  }, [multiPerson, state.people, state.transactions, view, period]);
+
+  const personExpenseMax = Math.max(1, ...byPerson.map((p) => p.totals.expenseCents));
+
   const trendMax = Math.max(1, ...trend.flatMap((t) => [t.income, t.expense]));
   const periodExpenseTotal = byCategory.reduce((s, e) => s + e.cents, 0);
   const periodLabel = formatPeriod(view, period);
@@ -211,18 +258,14 @@ export default function StatsScreen() {
         : null,
     [forecastPro, monthView, state.transactions, state.budgets],
   );
-
-  const budgetRows = useMemo(
+  const categoryForecasts = useMemo(
     () =>
-      Object.entries(state.budgets)
-        .map(([categoryId, limitCents]) => ({
-          category: categoryById(categoryId),
-          limitCents,
-          spent: byCategory.find((e) => e.category.id === categoryId)?.cents ?? 0,
-        }))
-        .sort((a, b) => b.spent / b.limitCents - a.spent / a.limitCents),
-    [state.budgets, byCategory, categoryById],
+      forecastPro && monthView
+        ? forecastCategories(state.transactions, state.customCategories, state.budgets)
+        : [],
+    [forecastPro, monthView, state.transactions, state.customCategories, state.budgets],
   );
+
 
   const confirmFund = () => {
     if (!fundingGoal) return;
@@ -254,7 +297,6 @@ export default function StatsScreen() {
 
       {state.transactions.length === 0 && state.goals.length === 0 ? (
         <EmptyState
-          icon="📊"
           message="Charts appear here once you add some incomes and expenses."
         />
       ) : (
@@ -315,7 +357,12 @@ export default function StatsScreen() {
             <Card>
               <Label>Forecast · rest of {periodLabel}</Label>
               {forecast ? (
-                <ForecastBody forecast={forecast} colors={colors} styles={styles} />
+                <ForecastBody
+                  forecast={forecast}
+                  categoryForecasts={categoryForecasts}
+                  colors={colors}
+                  styles={styles}
+                />
               ) : (
                 <ProLock what="Spending forecasts" styles={styles} />
               )}
@@ -334,7 +381,7 @@ export default function StatsScreen() {
               ) : (
                 insights.map((insight, i) => (
                   <Text key={i} style={styles.insight}>
-                    {insight.emoji}  {insight.text}
+                    {insight.text}
                   </Text>
                 ))
               )}
@@ -351,7 +398,8 @@ export default function StatsScreen() {
                 return (
                   <MeterRow
                     key={category.id}
-                    label={`${category.emoji} ${category.name}`}
+                    label={category.name}
+                    dotColor={category.color}
                     right={`${formatCents(cents)}  ${Math.round(share * 100)}%`}
                     ratio={share}
                     barColor={colors.primary}
@@ -362,80 +410,53 @@ export default function StatsScreen() {
             )}
           </Card>
 
-          {view === 'month' ? (
+          {multiPerson ? (
             <Card>
-              <Label>Budgets · {periodLabel}</Label>
-              {budgetRows.length === 0 ? (
-                <Text style={styles.emptyText}>
-                  No budgets set. Add monthly limits per category in the Settings tab.
-                </Text>
+              <Label>By person · {periodLabel}</Label>
+              {byPerson.every((p) => p.totals.expenseCents === 0) ? (
+                <Text style={styles.emptyText}>No spending by anyone in this {view}.</Text>
               ) : (
-                budgetRows.map(({ category, limitCents, spent }) => {
-                  const ratio = spent / limitCents;
-                  const over = ratio > 1;
-                  return (
-                    <MeterRow
-                      key={category.id}
-                      label={`${category.emoji} ${category.name}`}
-                      right={`${formatCents(spent)} / ${formatCents(limitCents)}`}
-                      rightColor={over ? colors.expense : undefined}
-                      ratio={ratio}
-                      barColor={
-                        over
-                          ? colors.expense
-                          : ratio >= NEAR_THRESHOLD
-                            ? colors.warning
-                            : colors.income
-                      }
-                      below={over ? `${formatCents(spent - limitCents)} over budget` : undefined}
-                      belowColor={colors.expense}
-                      styles={styles}
-                    />
-                  );
-                })
+                byPerson.map(({ person, totals }) => (
+                  <View key={person.id} style={styles.catRow}>
+                    <Row style={{ justifyContent: 'space-between' }}>
+                      <Row style={{ flex: 1, marginRight: spacing.s }}>
+                        <View style={[styles.dot, { backgroundColor: person.color }]} />
+                        <Text style={styles.catName} numberOfLines={1}>
+                          {person.name}
+                        </Text>
+                      </Row>
+                      <Text style={styles.catAmount}>
+                        {formatCents(totals.expenseCents)}
+                      </Text>
+                    </Row>
+                    <View style={styles.track}>
+                      <View
+                        style={[
+                          styles.fill,
+                          {
+                            backgroundColor: person.color,
+                            width: `${Math.max(2, (totals.expenseCents / personExpenseMax) * 100)}%`,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.belowMuted}>
+                      earned {formatCents(totals.incomeCents)} ·{' '}
+                      <Text
+                        style={{
+                          color: totals.netCents >= 0 ? colors.income : colors.expense,
+                        }}
+                      >
+                        {totals.netCents >= 0 ? 'kept ' : 'short '}
+                        {formatCents(Math.abs(totals.netCents))}
+                      </Text>
+                    </Text>
+                  </View>
+                ))
               )}
             </Card>
           ) : null}
 
-          <Card>
-            <Label>Savings goals</Label>
-            {state.goals.length === 0 ? (
-              <Text style={styles.emptyText}>
-                No goals yet. Create one in the Settings tab — e.g. “Vacation €3.000”.
-              </Text>
-            ) : (
-              state.goals.map((goal) => {
-                const { ratio, done, monthlySuggestionCents } = goalProgress(goal);
-                return (
-                  <View key={goal.id} style={styles.goalRow}>
-                    <MeterRow
-                      label={`${done ? '🏆' : '🎯'} ${goal.name}`}
-                      right={`${formatCents(goal.savedCents)} / ${formatCents(goal.targetCents)}`}
-                      ratio={ratio}
-                      barColor={done ? colors.income : colors.primary}
-                      below={
-                        monthlySuggestionCents && goal.deadline
-                          ? `Save ${formatCents(monthlySuggestionCents)} / month to reach it by ${formatMonth(goal.deadline)}`
-                          : undefined
-                      }
-                      belowColor={colors.textSecondary}
-                      styles={styles}
-                    />
-                    {!done ? (
-                      <Pressable
-                        style={styles.fundButton}
-                        onPress={() => setFundingGoal(goal)}
-                      >
-                        <Text style={styles.fundLabel}>+ Add money</Text>
-                      </Pressable>
-                    ) : (
-                      <Text style={styles.goalDone}>Goal reached! 🎉</Text>
-                    )}
-                  </View>
-                );
-              })
-            )}
-          </Card>
         </>
       )}
 
@@ -526,6 +547,23 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
       marginTop: spacing.s,
       lineHeight: font.small * 1.4,
+    },
+    dot: {
+      width: scale(10),
+      height: scale(10),
+      borderRadius: scale(5),
+      marginRight: spacing.s,
+    },
+    belowMuted: {
+      marginTop: spacing.xs,
+      fontSize: font.small,
+      color: colors.textSecondary,
+    },
+    forecastCategories: {
+      marginTop: spacing.s,
+      paddingTop: spacing.s,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
     },
     catRow: {
       marginBottom: spacing.m,

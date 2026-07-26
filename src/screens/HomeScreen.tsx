@@ -19,19 +19,25 @@ import {
   formatMonth,
   monthKey,
 } from '../utils/money';
-import { monthTotals } from '../utils/aggregate';
+import { monthTotals, expenseCentsByCategory } from '../utils/aggregate';
+import { goalProgress } from '../utils/goals';
+import { NEAR_THRESHOLD } from '../utils/alerts';
+import { parseAmountToCents } from '../utils/money';
 import {
   Card,
   Chip,
   EmptyState,
+  Input,
+  Label,
   PeriodNav,
+  PrimaryButton,
   Row,
   screenChrome,
   SegmentedControl,
   useThemedStyles,
 } from '../components/ui';
 import { TransactionForm, TransactionValues } from '../components/TransactionForm';
-import { Transaction } from '../types';
+import { Goal, Transaction } from '../types';
 
 const COMBINED = 'combined';
 
@@ -43,7 +49,7 @@ const byDateDesc = (a: Transaction, b: Transaction) =>
   a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
 
 export default function HomeScreen() {
-  const { state, removeTransaction, updateTransaction } = useApp();
+  const { state, removeTransaction, updateTransaction, addToGoal } = useApp();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { byId: categoryById } = useCategories();
@@ -54,6 +60,8 @@ export default function HomeScreen() {
   const [searchScope, setSearchScope] = useState<SearchScope>('month');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [editing, setEditing] = useState<Transaction | null>(null);
+  const [fundingGoal, setFundingGoal] = useState<Goal | null>(null);
+  const [fundAmount, setFundAmount] = useState('');
 
   const multiPerson = state.people.length > 1;
   const activePersonId =
@@ -100,6 +108,35 @@ export default function HomeScreen() {
       );
   }, [allTimeSearch, allTimeSorted, monthTransactions, search, typeFilter, categoryById]);
 
+  // Budgets and goals live here, next to the money they describe
+  const budgetRows = useMemo(() => {
+    const spentByCategory = expenseCentsByCategory(
+      state.transactions,
+      state.customCategories,
+      'month',
+      month,
+    );
+    return Object.entries(state.budgets)
+      .map(([categoryId, limitCents]) => ({
+        category: categoryById(categoryId),
+        limitCents,
+        spent: spentByCategory.get(categoryId) ?? 0,
+      }))
+      .sort((a, b) => b.spent / b.limitCents - a.spent / a.limitCents);
+  }, [state.transactions, state.customCategories, state.budgets, month, categoryById]);
+
+  const confirmFund = () => {
+    if (!fundingGoal) return;
+    const cents = parseAmountToCents(fundAmount);
+    if (!cents) {
+      Alert.alert('Invalid amount', 'Enter an amount like 50');
+      return;
+    }
+    addToGoal(fundingGoal.id, cents);
+    setFundingGoal(null);
+    setFundAmount('');
+  };
+
   const confirmDelete = (t: Transaction) => {
     Alert.alert('Delete entry', `Delete "${t.note || 'this entry'}"?`, [
       { text: 'Cancel', style: 'cancel' },
@@ -123,14 +160,10 @@ export default function HomeScreen() {
         <Card style={styles.txCard}>
           <View
             style={[
-              styles.txIcon,
-              { backgroundColor: isIncome ? colors.incomeSoft : colors.expenseSoft },
+              styles.txDot,
+              { backgroundColor: isIncome ? colors.income : category.color },
             ]}
-          >
-            <Text style={{ fontSize: font.medium }}>
-              {isIncome ? '↑' : category.emoji}
-            </Text>
-          </View>
+          />
           <View style={{ flex: 1, marginHorizontal: spacing.m }}>
             <Text style={styles.txNote} numberOfLines={1}>
               {item.note || (isIncome ? 'Income' : category.name)}
@@ -145,8 +178,8 @@ export default function HomeScreen() {
               <Text style={styles.txMeta} numberOfLines={1}>
                 {formatDate(item.date, allTimeSearch)}
                 {!isIncome ? ` · ${category.name}` : ''}
-                {item.recurringId ? ' · ↻' : ''}
-                {item.photoUri ? ' · 📎' : ''}
+                {item.recurringId ? ' · repeats' : ''}
+                {item.photoUri ? ' · receipt' : ''}
                 {item.type === 'expense' && multiPerson
                   ? item.shared
                     ? ' · shared'
@@ -235,6 +268,85 @@ export default function HomeScreen() {
               </Row>
             </Card>
 
+            {budgetRows.length > 0 ? (
+              <Card>
+                <Label>Budgets · {formatMonth(month)}</Label>
+                {budgetRows.map(({ category, limitCents, spent }) => {
+                  const ratio = spent / limitCents;
+                  const over = ratio > 1;
+                  return (
+                    <View key={category.id} style={styles.meterRow}>
+                      <Row style={{ justifyContent: 'space-between' }}>
+                        <Row style={{ flex: 1, marginRight: spacing.s }}>
+                          <View style={[styles.dot, { backgroundColor: category.color }]} />
+                          <Text style={styles.meterName} numberOfLines={1}>
+                            {category.name}
+                          </Text>
+                        </Row>
+                        <Text
+                          style={[styles.meterValue, over ? { color: colors.expense } : null]}
+                        >
+                          {formatCents(spent)} / {formatCents(limitCents)}
+                        </Text>
+                      </Row>
+                      <View style={styles.track}>
+                        <View
+                          style={[
+                            styles.fill,
+                            {
+                              backgroundColor: over
+                                ? colors.expense
+                                : ratio >= NEAR_THRESHOLD
+                                  ? colors.warning
+                                  : colors.income,
+                              width: `${Math.min(100, Math.max(2, ratio * 100))}%`,
+                            },
+                          ]}
+                        />
+                      </View>
+                    </View>
+                  );
+                })}
+              </Card>
+            ) : null}
+
+            {state.goals.length > 0 ? (
+              <Card>
+                <Label>Savings goals</Label>
+                {state.goals.map((goal) => {
+                  const { ratio, done } = goalProgress(goal);
+                  return (
+                    <View key={goal.id} style={styles.meterRow}>
+                      <Row style={{ justifyContent: 'space-between' }}>
+                        <Text style={styles.meterName} numberOfLines={1}>
+                          {goal.name}
+                        </Text>
+                        <Text style={styles.meterValue}>
+                          {formatCents(goal.savedCents)} / {formatCents(goal.targetCents)}
+                        </Text>
+                      </Row>
+                      <View style={styles.track}>
+                        <View
+                          style={[
+                            styles.fill,
+                            {
+                              backgroundColor: done ? colors.income : colors.primary,
+                              width: `${Math.min(100, Math.max(2, ratio * 100))}%`,
+                            },
+                          ]}
+                        />
+                      </View>
+                      {!done ? (
+                        <Pressable onPress={() => setFundingGoal(goal)} hitSlop={8}>
+                          <Text style={styles.fundLink}>Add money</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </Card>
+            ) : null}
+
             {forPerson.length > 0 ? (
               <>
                 <TextInput
@@ -246,7 +358,7 @@ export default function HomeScreen() {
                     // query returns to the month so it can't apply invisibly.
                     if (!value.trim()) setSearchScope('month');
                   }}
-                  placeholder="🔍  Search entries…"
+                  placeholder="Search entries"
                   placeholderTextColor={colors.textSecondary}
                   returnKeyType="search"
                 />
@@ -285,7 +397,6 @@ export default function HomeScreen() {
         }
         ListEmptyComponent={
           <EmptyState
-            icon="🧾"
             message={
               state.people.length === 0
                 ? 'Add a person in the Settings tab, then add your first income or expense.'
@@ -298,6 +409,34 @@ export default function HomeScreen() {
           />
         }
       />
+
+      {fundingGoal ? (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setFundingGoal(null)}>
+          <View style={styles.modalBackdrop}>
+            <Card style={{ marginBottom: 0 }}>
+              <Label>Add to “{fundingGoal.name}”</Label>
+              <Input
+                value={fundAmount}
+                onChangeText={setFundAmount}
+                placeholder="0,00"
+                keyboardType="decimal-pad"
+                returnKeyType="done"
+                autoFocus
+                onSubmitEditing={confirmFund}
+              />
+              <Row style={{ marginTop: spacing.m }}>
+                <PrimaryButton
+                  label="Cancel"
+                  onPress={() => setFundingGoal(null)}
+                  color={colors.textSecondary}
+                  style={{ flex: 1, marginRight: spacing.s }}
+                />
+                <PrimaryButton label="Add" onPress={confirmFund} style={{ flex: 1 }} />
+              </Row>
+            </Card>
+          </View>
+        </Modal>
+      ) : null}
 
       {editing ? (
         <Modal visible animationType="slide" onRequestClose={() => setEditing(null)}>
@@ -371,6 +510,29 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: font.medium,
       fontWeight: '700',
     },
+    meterRow: { marginBottom: spacing.m },
+    meterName: { flex: 1, fontSize: font.body, fontWeight: '600', color: colors.text },
+    meterValue: { fontSize: font.body, fontWeight: '700', color: colors.text },
+    track: {
+      height: scale(8),
+      borderRadius: scale(4),
+      backgroundColor: colors.background,
+      marginTop: spacing.xs,
+      overflow: 'hidden',
+    },
+    fill: { height: '100%', borderRadius: scale(4) },
+    fundLink: {
+      marginTop: spacing.xs,
+      fontSize: font.small,
+      fontWeight: '700',
+      color: colors.primary,
+    },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'center',
+      padding: spacing.xl,
+    },
     resultCount: {
       fontSize: font.small,
       color: colors.textSecondary,
@@ -392,12 +554,10 @@ const makeStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       paddingVertical: spacing.m,
     },
-    txIcon: {
-      width: scale(38),
-      height: scale(38),
-      borderRadius: radius.m,
-      alignItems: 'center',
-      justifyContent: 'center',
+    txDot: {
+      width: scale(10),
+      height: scale(10),
+      borderRadius: scale(5),
     },
     txNote: {
       fontSize: font.body,

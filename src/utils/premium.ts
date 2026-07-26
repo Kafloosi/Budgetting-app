@@ -11,19 +11,25 @@ import { AppSettings } from '../types';
  */
 export const PREMIUM_PRICE_LABEL = '€10';
 
-export type PremiumFeature = 'insights' | 'forecast' | 'widget' | 'goalAutos';
+export type PremiumFeature =
+  | 'insights'
+  | 'forecast'
+  | 'widget'
+  | 'goalAutos'
+  | 'categories';
 
 export const PREMIUM_FEATURES: Record<PremiumFeature, string> = {
-  insights: '📈 Insights — smart monthly spending analysis',
-  forecast: '🔮 Forecast — see where the month is heading',
-  widget: '📱 Home-screen widget with your live balance',
-  goalAutos: '🎯 Automatic monthly goal contributions',
+  insights: 'Insights — monthly spending analysis',
+  forecast: 'Forecast — where the month is heading',
+  widget: 'Home-screen widget with your balance',
+  goalAutos: 'Automatic monthly goal contributions',
+  categories: 'Unlimited custom categories',
 };
 
 /** Marketing copy for the paywall, including the non-feature support line */
 export const PREMIUM_SELLING_POINTS = [
   ...Object.values(PREMIUM_FEATURES),
-  '💛 Support further development',
+  'Support further development',
 ];
 
 /**

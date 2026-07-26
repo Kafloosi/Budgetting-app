@@ -14,7 +14,10 @@ export interface Person {
 export interface Category {
   id: string;
   name: string;
-  emoji: string;
+  /** Dot color shown in lists; subcategories inherit their parent's */
+  color: string;
+  /** Set on subcategories; absent on top-level categories */
+  parentId?: string;
 }
 
 export interface Transaction {
@@ -118,6 +121,8 @@ export interface AppSettings {
   budgetAlerts: boolean;
   /** Monthly reminder to settle up shared expenses */
   settleReminder: boolean;
+  /** Sunday summary of the week's spending */
+  weeklyDigest: boolean;
   /** One-time Budget Pro purchase / unlock */
   premium: boolean;
 }

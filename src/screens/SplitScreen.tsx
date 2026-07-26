@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
+  Image,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -8,11 +10,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useApp, useTheme } from '../context/AppContext';
-import { font, radius, scale, spacing, ThemeColors } from '../theme';
+import { useApp, usePeopleById, useTheme } from '../context/AppContext';
+import { darkColors, font, radius, scale, spacing, ThemeColors } from '../theme';
 import {
   currentPeriodKey,
   formatCents,
+  formatDate,
   formatPeriod,
 } from '../utils/money';
 import { computeSettlement, sharedExpensesForPeriod } from '../utils/split';
@@ -56,6 +59,8 @@ export default function SplitScreen() {
     twoPeople ? 'fifty-fifty' : 'equal-payments',
   );
   const [percentInputs, setPercentInputs] = useState<Record<string, string>>({});
+  const [receiptUri, setReceiptUri] = useState<string | null>(null);
+  const personById = usePeopleById();
 
   const changePeriodType = (t: PeriodType) => {
     setPeriodType(t);
@@ -251,7 +256,48 @@ export default function SplitScreen() {
         )}
       </Card>
 
+      {expenses.length > 0 ? (
+        <Card>
+          <Label>Shared expenses · {formatPeriod(periodType, period)}</Label>
+          {expenses.map((expense) => (
+            <Row key={expense.id} style={styles.expenseRow}>
+              {expense.photoUri ? (
+                <Pressable onPress={() => setReceiptUri(expense.photoUri!)}>
+                  <Image source={{ uri: expense.photoUri }} style={styles.thumb} />
+                </Pressable>
+              ) : (
+                <View style={[styles.thumb, styles.thumbEmpty]}>
+                  <Text style={styles.thumbEmptyText}>—</Text>
+                </View>
+              )}
+              <View style={{ flex: 1, marginHorizontal: spacing.m }}>
+                <Text style={styles.expenseNote} numberOfLines={1}>
+                  {expense.note || 'Expense'}
+                </Text>
+                <Text style={styles.expenseMeta} numberOfLines={1}>
+                  {personById.get(expense.personId)?.name ?? '?'} ·{' '}
+                  {formatDate(expense.date)}
+                </Text>
+              </View>
+              <Text style={styles.expenseAmount}>{formatCents(expense.amountCents)}</Text>
+            </Row>
+          ))}
+          <Text style={styles.receiptHint}>
+            Tap a receipt to view it full screen.
+          </Text>
+        </Card>
+      ) : null}
+
       <PrimaryButton label="Save calculation to history" onPress={save} disabled={!canSave} />
+
+      {receiptUri ? (
+        <Modal visible animationType="fade" onRequestClose={() => setReceiptUri(null)}>
+          <Pressable style={styles.viewer} onPress={() => setReceiptUri(null)}>
+            <Image source={{ uri: receiptUri }} style={styles.viewerImage} resizeMode="contain" />
+            <Text style={styles.viewerHint}>Tap to close</Text>
+          </Pressable>
+        </Modal>
+      ) : null}
     </ScrollView>
   );
 }
@@ -338,4 +384,38 @@ const makeStyles = (colors: ThemeColors) =>
     },
     transferText: { fontSize: font.body, color: colors.text, marginTop: 2 },
     settledText: { marginTop: spacing.m, fontSize: font.body, color: colors.income },
+    expenseRow: {
+      paddingVertical: spacing.s,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+    },
+    thumb: {
+      width: scale(40),
+      height: scale(40),
+      borderRadius: radius.s,
+      backgroundColor: colors.background,
+    },
+    thumbEmpty: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+    },
+    thumbEmptyText: { color: colors.textSecondary, fontSize: font.body },
+    expenseNote: { fontSize: font.body, fontWeight: '600', color: colors.text },
+    expenseMeta: { fontSize: font.small, color: colors.textSecondary, marginTop: 1 },
+    expenseAmount: { fontSize: font.body, fontWeight: '700', color: colors.text },
+    receiptHint: {
+      marginTop: spacing.m,
+      fontSize: font.small,
+      color: colors.textSecondary,
+    },
+    viewer: { flex: 1, backgroundColor: '#000000', justifyContent: 'center' },
+    viewerImage: { width: '100%', height: '85%' },
+    viewerHint: {
+      color: darkColors.textSecondary,
+      textAlign: 'center',
+      fontSize: font.small,
+      paddingBottom: spacing.xl,
+    },
   });

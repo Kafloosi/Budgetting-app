@@ -38,9 +38,10 @@ import {
   restorePremium,
   validateUnlockCode,
 } from '../utils/premium';
-import { DEFAULT_CATEGORIES } from '../categories';
+import { FREE_CUSTOM_CATEGORY_LIMIT, topLevelCategories } from '../categories';
 import {
   Card,
+  Chip,
   CurrencyChips,
   EmptyState,
   Input,
@@ -97,8 +98,9 @@ function BudgetRow({
 
   return (
     <Row style={styles.budgetRow}>
+      <View style={[styles.dot, { backgroundColor: category.color }]} />
       <Text style={styles.budgetName} numberOfLines={1}>
-        {category.emoji} {category.name}
+        {category.name}
       </Text>
       <Input
         style={styles.budgetInput}
@@ -126,19 +128,23 @@ export default function SettingsScreen() {
     setAppLock,
     setBudgetAlerts,
     setSettleReminder,
+    setWeeklyDigest,
     setPremium,
     addGoal,
     removeGoal,
     replaceState,
+    eraseAllData,
   } = useApp();
   const { colors, mode, setMode } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { all: categories } = useCategories();
+  const { all: categories, byId: categoryById } = useCategories();
+  const topCategories = topLevelCategories(state.customCategories);
+  const categoriesPro = usePremium('categories');
   const personById = usePeopleById();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newCatName, setNewCatName] = useState('');
-  const [newCatEmoji, setNewCatEmoji] = useState('');
+  const [newCatParent, setNewCatParent] = useState<string | undefined>();
   const [goalName, setGoalName] = useState('');
   const [goalTarget, setGoalTarget] = useState('');
   const [goalDeadline, setGoalDeadline] = useState<string | undefined>();
@@ -188,6 +194,23 @@ export default function SettingsScreen() {
   };
 
   const [restoring, setRestoring] = useState(false);
+  const confirmErase = () => {
+    Alert.alert(
+      'Delete all data',
+      'This permanently erases every person, entry, receipt photo, budget, goal and setting on this phone. It cannot be undone — export a backup first if you want to keep anything.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete everything',
+          style: 'destructive',
+          onPress: () => {
+            eraseAllData();
+          },
+        },
+      ],
+    );
+  };
+
   const restore = async () => {
     if (restoring) return;
     setRestoring(true);
@@ -240,6 +263,9 @@ export default function SettingsScreen() {
   const toggleSettleReminder = (enabled: boolean) =>
     toggleNotification(enabled, setSettleReminder);
 
+  const toggleWeeklyDigest = (enabled: boolean) =>
+    toggleNotification(enabled, setWeeklyDigest);
+
   const confirmRemovePerson = (person: Person) => {
     Alert.alert(
       'Remove person',
@@ -274,9 +300,15 @@ export default function SettingsScreen() {
       Alert.alert('Already exists', `A category called "${name}" already exists.`);
       return;
     }
-    addCategory(name, newCatEmoji);
+    if (!addCategory(name, newCatParent)) {
+      Alert.alert(
+        'Category limit reached',
+        `The free plan includes ${FREE_CUSTOM_CATEGORY_LIMIT} custom categories. Unlock Budget Pro for unlimited categories.`,
+      );
+      return;
+    }
     setNewCatName('');
-    setNewCatEmoji('');
+    setNewCatParent(undefined);
   };
 
   const toggleAppLock = async (enabled: boolean) => {
@@ -406,7 +438,7 @@ export default function SettingsScreen() {
 
       <Label>People</Label>
       {state.people.length === 0 ? (
-        <EmptyState icon="👤" message="No people yet. Add yourself to get started." />
+        <EmptyState message="No people yet. Add yourself to get started." />
       ) : (
         state.people.map((item) => {
           const editing = editingId === item.id;
@@ -589,37 +621,50 @@ export default function SettingsScreen() {
       <Card>
         {state.customCategories.map((c) => (
           <Row key={c.id} style={styles.listRow}>
-            <Text style={[styles.rowTitle, { flex: 1 }]}>
-              {c.emoji} {c.name}
-            </Text>
+            <View style={[styles.dot, { backgroundColor: c.color }]} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle}>{c.name}</Text>
+              {c.parentId ? (
+                <Text style={styles.mutedSmall}>
+                  under {categoryById(c.parentId).name}
+                </Text>
+              ) : null}
+            </View>
             <Pressable onPress={() => removeCategory(c.id)} hitSlop={8}>
               <Text style={styles.danger}>Remove</Text>
             </Pressable>
           </Row>
         ))}
-        <Row>
-          <Input
-            style={styles.emojiInput}
-            value={newCatEmoji}
-            onChangeText={setNewCatEmoji}
-            placeholder="🏷️"
+        <Input
+          style={{ marginBottom: spacing.s }}
+          value={newCatName}
+          onChangeText={setNewCatName}
+          placeholder="Category name"
+          onSubmitEditing={submitCategory}
+          returnKeyType="done"
+        />
+        <Label>Add under</Label>
+        <View style={styles.chipsWrap}>
+          <Chip
+            label="Top level"
+            selected={newCatParent === undefined}
+            onPress={() => setNewCatParent(undefined)}
           />
-          <Input
-            style={styles.catNameInput}
-            value={newCatName}
-            onChangeText={setNewCatName}
-            placeholder="Category name"
-            onSubmitEditing={submitCategory}
-            returnKeyType="done"
-          />
-          <PrimaryButton
-            label="Add"
-            onPress={submitCategory}
-            style={{ paddingHorizontal: spacing.l, paddingVertical: scale(11) }}
-          />
-        </Row>
+          {topCategories.map((c) => (
+            <Chip
+              key={c.id}
+              label={c.name}
+              selected={newCatParent === c.id}
+              onPress={() => setNewCatParent(c.id)}
+              color={c.color}
+            />
+          ))}
+        </View>
+        <PrimaryButton label="Add category" onPress={submitCategory} />
         <Text style={[styles.mutedSmall, { marginTop: spacing.s }]}>
-          The {DEFAULT_CATEGORIES.length} built-in categories are always available.
+          {categoriesPro
+            ? 'Unlimited custom categories with Budget Pro.'
+            : `${state.customCategories.length} of ${FREE_CUSTOM_CATEGORY_LIMIT} free custom categories used — Budget Pro removes the limit.`}
         </Text>
       </Card>
 
@@ -655,6 +700,20 @@ export default function SettingsScreen() {
             thumbColor={colors.white}
           />
         </Row>
+        <Row style={styles.settingDivider}>
+          <View style={{ flex: 1, paddingRight: spacing.m }}>
+            <Text style={styles.rowTitle}>Weekly digest</Text>
+            <Text style={styles.mutedSmall}>
+              A Sunday evening summary of what you spent this week.
+            </Text>
+          </View>
+          <Switch
+            value={state.settings.weeklyDigest}
+            onValueChange={toggleWeeklyDigest}
+            trackColor={{ true: colors.primary, false: colors.border }}
+            thumbColor={colors.white}
+          />
+        </Row>
         {state.people.length > 1 ? (
           <Row style={styles.settingDivider}>
             <View style={{ flex: 1, paddingRight: spacing.m }}>
@@ -672,6 +731,25 @@ export default function SettingsScreen() {
             />
           </Row>
         ) : null}
+      </Card>
+
+      <Label>Privacy</Label>
+      <Card>
+        <Text style={styles.mutedBody}>
+          Everything stays on this phone. The app has no account, sends nothing
+          to a server, and contains no analytics or tracking — so there is no
+          copy of your data anywhere to leak, and nothing that identifies you.
+        </Text>
+        <Text style={[styles.mutedSmall, { marginTop: spacing.m }]}>
+          Backups and receipt photos you export leave the app unencrypted, so
+          store them somewhere you trust.
+        </Text>
+        <PrimaryButton
+          label="Delete all data"
+          onPress={confirmErase}
+          color={colors.expense}
+          style={{ marginTop: spacing.m }}
+        />
       </Card>
 
       <Label>Security</Label>
@@ -797,12 +875,15 @@ const makeStyles = (colors: ThemeColors) =>
       paddingHorizontal: spacing.s,
       textAlign: 'right',
     },
-    emojiInput: {
-      width: scale(56),
-      marginRight: spacing.s,
+    chipsWrap: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      marginBottom: spacing.s,
     },
-    catNameInput: {
-      flex: 1,
+    dot: {
+      width: scale(10),
+      height: scale(10),
+      borderRadius: scale(5),
       marginRight: spacing.s,
     },
     settingDivider: {

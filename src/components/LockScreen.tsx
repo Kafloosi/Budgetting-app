@@ -26,7 +26,6 @@ export function LockScreen({ onUnlock }: { onUnlock: () => void }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.icon}>🔒</Text>
       <Text style={styles.title}>Locked</Text>
       <Text style={styles.subtitle}>Unlock to see your budget</Text>
       <PrimaryButton label="Unlock" onPress={authenticate} style={styles.button} />

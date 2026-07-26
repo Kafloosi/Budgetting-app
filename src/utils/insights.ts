@@ -4,7 +4,6 @@ import { expenseCentsByCategory } from './aggregate';
 import { formatCents, formatMonth, monthKey, shiftMonth } from './money';
 
 export interface Insight {
-  emoji: string;
   text: string;
 }
 
@@ -46,7 +45,6 @@ export function computeInsights(
   if (prevSpent > 0) {
     const change = Math.round(((spent - prevSpent) / prevSpent) * 100);
     insights.push({
-      emoji: change > 0 ? '📈' : '📉',
       text:
         change === 0
           ? `You spent about the same as in ${formatMonth(prevMonth)}.`
@@ -59,7 +57,6 @@ export function computeInsights(
     const category = categoryById(customCategories, top[0]);
     const prev = prevByCategory.get(top[0]) ?? 0;
     insights.push({
-      emoji: category.emoji,
       text: `Top category: ${category.name} at ${formatCents(top[1])}${
         prev > 0 ? ` (${formatCents(prev)} last month)` : ''
       }.`,
@@ -70,7 +67,6 @@ export function computeInsights(
 
   if (biggest) {
     insights.push({
-      emoji: '💥',
       text: `Biggest expense: ${biggest.note || 'unnamed'} at ${formatCents(biggest.cents)}.`,
     });
   }
@@ -79,8 +75,8 @@ export function computeInsights(
     const left = income - spent;
     insights.push(
       left >= 0
-        ? { emoji: '✅', text: `${formatCents(left)} of this month's income is still unspent.` }
-        : { emoji: '⚠️', text: `Spending exceeds income by ${formatCents(-left)} this month.` },
+        ? { text: `${formatCents(left)} of this month's income is still unspent.` }
+        : { text: `Spending exceeds income by ${formatCents(-left)} this month.` },
     );
   }
 

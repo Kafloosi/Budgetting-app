@@ -1,5 +1,6 @@
-import { Transaction } from '../types';
-import { monthTotals } from './aggregate';
+import { Category, Transaction } from '../types';
+import { expenseCentsByCategory, monthTotals } from './aggregate';
+import { categoryById } from '../categories';
 import { currentMonthKey, daysInMonth, elapsedDaysInMonth } from './money';
 
 /** Below this many days or with nothing spent, a projection is noise */
@@ -52,4 +53,48 @@ export function forecastCurrentMonth(
     safeDailyCents: Math.max(0, Math.round((incomeCents - expenseCents) / remainingDays)),
     hasEnoughData: elapsedDays >= MIN_DAYS_FOR_FORECAST && expenseCents > 0,
   };
+}
+
+export interface CategoryForecast {
+  category: Category;
+  spentCents: number;
+  limitCents: number;
+  projectedCents: number;
+  /** Projected spend beyond the limit; 0 when the category stays within it */
+  projectedOverCents: number;
+}
+
+/**
+ * Premium: the same projection applied per budgeted category, so a category
+ * heading past its limit shows up mid-month. Only categories with a budget
+ * are included; worst offenders first.
+ */
+export function forecastCategories(
+  transactions: Transaction[],
+  customCategories: Category[],
+  budgets: Record<string, number>,
+): CategoryForecast[] {
+  const month = currentMonthKey();
+  const total = daysInMonth(month);
+  const elapsedDays = elapsedDaysInMonth(month);
+  const spentByCategory = expenseCentsByCategory(
+    transactions,
+    customCategories,
+    'month',
+    month,
+  );
+
+  return Object.entries(budgets)
+    .map(([categoryId, limitCents]) => {
+      const spentCents = spentByCategory.get(categoryId) ?? 0;
+      const projectedCents = Math.round((spentCents / elapsedDays) * total);
+      return {
+        category: categoryById(customCategories, categoryId),
+        spentCents,
+        limitCents,
+        projectedCents,
+        projectedOverCents: Math.max(0, projectedCents - limitCents),
+      };
+    })
+    .sort((a, b) => b.projectedCents / b.limitCents - a.projectedCents / a.limitCents);
 }

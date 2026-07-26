@@ -47,7 +47,7 @@ export function dueBudgetAlerts(state: AppState, month = currentMonthKey()): Due
     due.push({
       key,
       level,
-      title: `${category.emoji} ${category.name} ${over ? 'over budget' : 'almost at its limit'}`,
+      title: `${category.name} ${over ? 'over budget' : 'almost at its limit'}`,
       body: over
         ? `${spentOfBudget} (${formatCents(spent - limitCents)} over).`
         : `${spentOfBudget} this month.`,

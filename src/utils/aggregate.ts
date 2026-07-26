@@ -1,5 +1,5 @@
 import { Category, NavPeriodType, Transaction } from '../types';
-import { allCategories, categoryById, OTHER_CATEGORY_ID } from '../categories';
+import { categoryById, rootCategoryId } from '../categories';
 import { monthKey, periodOfDate } from './money';
 
 export interface PeriodTotals {
@@ -25,8 +25,9 @@ export function monthTotals(transactions: Transaction[], month: string): PeriodT
 }
 
 /**
- * Expense totals per category id for one period, with unknown/missing
- * categories folded into "Other" exactly once.
+ * Expense totals per top-level category for one period. Subcategory spending
+ * rolls up to its parent, and unknown or missing categories fold into
+ * "Other" — so every report groups the same way.
  */
 export function expenseCentsByCategory(
   transactions: Transaction[],
@@ -34,12 +35,33 @@ export function expenseCentsByCategory(
   periodType: NavPeriodType,
   period: string,
 ): Map<string, number> {
-  const validIds = new Set(allCategories(customCategories).map((c) => c.id));
   const totals = new Map<string, number>();
   for (const t of transactions) {
     if (t.type !== 'expense' || periodOfDate(periodType, t.date) !== period) continue;
-    const id = t.categoryId && validIds.has(t.categoryId) ? t.categoryId : OTHER_CATEGORY_ID;
+    const id = rootCategoryId(customCategories, t.categoryId);
     totals.set(id, (totals.get(id) ?? 0) + t.amountCents);
+  }
+  return totals;
+}
+
+/** Income and expense totals per person for one period */
+export function totalsByPerson(
+  transactions: Transaction[],
+  periodType: NavPeriodType,
+  period: string,
+): Map<string, PeriodTotals> {
+  const totals = new Map<string, PeriodTotals>();
+  for (const t of transactions) {
+    if (periodOfDate(periodType, t.date) !== period) continue;
+    const current = totals.get(t.personId) ?? {
+      incomeCents: 0,
+      expenseCents: 0,
+      netCents: 0,
+    };
+    if (t.type === 'income') current.incomeCents += t.amountCents;
+    else current.expenseCents += t.amountCents;
+    current.netCents = current.incomeCents - current.expenseCents;
+    totals.set(t.personId, current);
   }
   return totals;
 }

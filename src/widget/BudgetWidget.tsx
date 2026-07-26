@@ -39,7 +39,7 @@ export function BudgetWidget(props: UnlockedProps | LockedProps) {
     >
       {props.locked ? (
         <TextWidget
-          text="🔒 Unlock Budget Pro in the app to see your balance here"
+          text="Unlock Budget Pro in the app to see your balance here"
           style={{ fontSize: 13, color: palette.text }}
         />
       ) : (
