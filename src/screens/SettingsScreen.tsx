@@ -60,6 +60,7 @@ import {
   useThemedStyles,
 } from '../components/ui';
 import { PersonForm } from '../components/PersonForm';
+import { APP_VERSION } from '../version';
 import {
   backupFilename,
   csvFilename,
@@ -1138,6 +1139,14 @@ export default function SettingsScreen() {
           </Row>
         </Card>
       ) : null}
+
+      <Label>About</Label>
+      <Card>
+        <Row>
+          <Text style={[styles.rowTitle, { flex: 1 }]}>Version</Text>
+          <Text style={styles.mutedBody}>{APP_VERSION}</Text>
+        </Row>
+      </Card>
 
     </ScrollView>
   );
