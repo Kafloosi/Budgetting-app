@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { AppState as RNAppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import {
+  launchedFromAddEntry,
+  onAddEntryQuickAction,
+  registerQuickActions,
+} from './src/utils/quickActions';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppProvider, useApp, useTheme } from './src/context/AppContext';
 import HomeScreen from './src/screens/HomeScreen';
@@ -33,6 +38,13 @@ function Root() {
     });
     return () => sub.remove();
   }, [appLock]);
+
+  // Home-screen quick action: long-press the app icon -> "Add entry"
+  useEffect(() => {
+    registerQuickActions();
+    if (launchedFromAddEntry()) setTab('add');
+    return onAddEntryQuickAction(() => setTab('add'));
+  }, []);
 
   // The split feature only exists when there is more than one person
   const showSplit = state.people.length > 1;

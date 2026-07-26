@@ -125,6 +125,7 @@ export default function HomeScreen() {
                 {formatDate(item.date)}
                 {!isIncome ? ` · ${category.name}` : ''}
                 {item.recurringId ? ' · ↻' : ''}
+                {item.photoUri ? ' · 📎' : ''}
                 {item.type === 'expense' && multiPerson
                   ? item.shared
                     ? ' · shared'

@@ -11,6 +11,7 @@ import { AppState as RNAppState, useColorScheme } from 'react-native';
 import {
   AppState,
   Category,
+  Goal,
   IncomeFrequency,
   Person,
   RecurringRule,
@@ -21,6 +22,8 @@ import { emptyState, loadState, saveState } from '../storage';
 import { allCategories, OTHER_CATEGORY_ID } from '../categories';
 import { makeId, setActiveCurrency } from '../utils/money';
 import { applyRecurring } from '../utils/recurring';
+import { dueBudgetAlerts, pruneAlertLog, sendBudgetNotifications } from '../utils/alerts';
+import { reconcileReceipts } from '../utils/receipts';
 import {
   darkColors,
   lightColors,
@@ -51,9 +54,14 @@ interface AppContextValue {
   setBudget: (categoryId: string, limitCents: number | null) => void;
   addSettlement: (s: Omit<SettlementRecord, 'id' | 'createdAt'>) => void;
   removeSettlement: (id: string) => void;
+  toggleSettlementPaid: (id: string) => void;
+  addGoal: (goal: Omit<Goal, 'id' | 'savedCents'>) => void;
+  removeGoal: (id: string) => void;
+  addToGoal: (id: string, cents: number) => void;
   setThemeMode: (mode: ThemeMode) => void;
   setCurrencyCode: (code: string) => void;
   setAppLock: (enabled: boolean) => void;
+  setBudgetAlerts: (enabled: boolean) => void;
   completeOnboarding: () => void;
   /** Replace the whole state (used by backup import) */
   replaceState: (next: AppState) => void;
@@ -72,6 +80,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setState(persisted);
       loadedRef.current = true;
       setLoaded(true);
+      // Sweep receipt photos that no transaction references anymore
+      reconcileReceipts(persisted.transactions);
     });
   }, []);
 
@@ -88,6 +98,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loadedRef.current) saveState(state);
   }, [state]);
+
+  // Fire budget notifications when a category crosses 85% / 100% of its
+  // budget this month, remembering what was sent so alerts never repeat.
+  // Keyed on the inputs that can change budget status — not the whole state —
+  // so theme toggles etc. don't trigger a scan, and the log write (which
+  // also prunes past months) doesn't re-arm the effect.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  useEffect(() => {
+    if (!loadedRef.current) return;
+    const due = dueBudgetAlerts(stateRef.current);
+    if (due.length === 0) return;
+    sendBudgetNotifications(due);
+    setState((s) => ({
+      ...s,
+      budgetAlertLog: pruneAlertLog({
+        ...s.budgetAlertLog,
+        ...Object.fromEntries(due.map((a) => [a.key, a.level])),
+      }),
+    }));
+  }, [
+    state.transactions,
+    state.budgets,
+    state.customCategories,
+    state.settings.budgetAlerts,
+  ]);
 
   // Keep the money formatter in sync with the chosen currency
   setActiveCurrency(state.settings.currencyCode);
@@ -146,6 +182,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  // Any photo file the removed entry referenced is cleaned up by the
+  // reconcileReceipts sweep on next launch.
   const removeTransaction = useCallback((id: string) => {
     setState((s) => ({
       ...s,
@@ -155,10 +193,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addRecurring = useCallback(
     (rule: Omit<RecurringRule, 'id' | 'lastAppliedDate'>) => {
+      // Photos belong to individual entries, never to rules — strip here at
+      // the boundary since a spread would smuggle the field past the type.
+      const { photoUri: _photo, ...clean } = rule as typeof rule & {
+        photoUri?: string;
+      };
       setState((s) =>
         applyRecurring({
           ...s,
-          recurring: [...s.recurring, { ...rule, id: makeId() }],
+          recurring: [...s.recurring, { ...clean, id: makeId() }],
         }),
       );
     },
@@ -229,6 +272,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
+  const toggleSettlementPaid = useCallback((id: string) => {
+    setState((s) => ({
+      ...s,
+      settlements: s.settlements.map((r) =>
+        r.id === id
+          ? { ...r, settledAt: r.settledAt ? undefined : new Date().toISOString() }
+          : r,
+      ),
+    }));
+  }, []);
+
+  const addGoal = useCallback((goal: Omit<Goal, 'id' | 'savedCents'>) => {
+    setState((s) => ({
+      ...s,
+      goals: [...s.goals, { ...goal, id: makeId(), savedCents: 0 }],
+    }));
+  }, []);
+
+  const removeGoal = useCallback((id: string) => {
+    setState((s) => ({ ...s, goals: s.goals.filter((g) => g.id !== id) }));
+  }, []);
+
+  const addToGoal = useCallback((id: string, cents: number) => {
+    setState((s) => ({
+      ...s,
+      goals: s.goals.map((g) =>
+        g.id === id ? { ...g, savedCents: g.savedCents + cents } : g,
+      ),
+    }));
+  }, []);
+
   const setThemeMode = useCallback((mode: ThemeMode) => {
     setState((s) => ({ ...s, settings: { ...s.settings, themeMode: mode } }));
   }, []);
@@ -241,6 +315,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setState((s) => ({ ...s, settings: { ...s.settings, appLock: enabled } }));
   }, []);
 
+  const setBudgetAlerts = useCallback((enabled: boolean) => {
+    setState((s) => ({ ...s, settings: { ...s.settings, budgetAlerts: enabled } }));
+  }, []);
+
   const completeOnboarding = useCallback(() => {
     setState((s) => ({ ...s, settings: { ...s.settings, onboarded: true } }));
   }, []);
@@ -248,6 +326,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Expects normalized state (from storage.parseBackup)
   const replaceState = useCallback((next: AppState) => {
     setState(next);
+    reconcileReceipts(next.transactions);
   }, []);
 
   return (
@@ -268,9 +347,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setBudget,
         addSettlement,
         removeSettlement,
+        toggleSettlementPaid,
+        addGoal,
+        removeGoal,
+        addToGoal,
         setThemeMode,
         setCurrencyCode,
         setAppLock,
+        setBudgetAlerts,
         completeOnboarding,
         replaceState,
       }}

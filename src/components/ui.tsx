@@ -11,8 +11,13 @@ import {
 } from 'react-native';
 import { useApp, useTheme } from '../context/AppContext';
 import { font, radius, scale, spacing, ThemeColors } from '../theme';
-import { PeriodType } from '../types';
-import { CURRENCIES, currentPeriodKey, formatPeriod, shiftPeriod } from '../utils/money';
+import {
+  CURRENCIES,
+  currentPeriodKey,
+  formatPeriod,
+  NavPeriodType,
+  shiftPeriod,
+} from '../utils/money';
 
 /** Build a themed StyleSheet, re-created only when the theme changes. */
 export function useThemedStyles<T>(factory: (colors: ThemeColors) => T): T {
@@ -170,39 +175,53 @@ export function SegmentedControl<T extends string>({
 }
 
 /**
- * Previous/next navigation for a month or week period.
- * The next arrow is disabled once the current period is reached,
- * so future periods can never be selected.
+ * Previous/next navigation for a month, week, or year period.
+ * By default the next arrow disables at the current period, so future
+ * periods can't be selected; pass `allowFuture` (with an optional `min`
+ * floor) for pickers that point forward, like goal deadlines.
  */
 export function PeriodNav({
   periodType,
   period,
   onChange,
+  allowFuture = false,
+  min,
+  prefix,
 }: {
-  periodType: PeriodType;
+  periodType: NavPeriodType;
   period: string;
   onChange: (period: string) => void;
+  allowFuture?: boolean;
+  min?: string;
+  prefix?: string;
 }) {
   const styles = useStyles();
-  const atCurrent = period >= currentPeriodKey(periodType);
+  const nextDisabled = !allowFuture && period >= currentPeriodKey(periodType);
+  const prevDisabled = min !== undefined && period <= min;
   return (
     <View style={styles.periodRow}>
       <Pressable
-        style={styles.periodArrow}
+        style={[styles.periodArrow, prevDisabled && styles.periodArrowDisabled]}
+        disabled={prevDisabled}
         onPress={() => onChange(shiftPeriod(periodType, period, -1))}
       >
-        <Text style={styles.periodArrowText}>‹</Text>
+        <Text
+          style={[styles.periodArrowText, prevDisabled && styles.periodArrowTextDisabled]}
+        >
+          ‹
+        </Text>
       </Pressable>
       <Text style={styles.periodLabel} numberOfLines={1}>
+        {prefix ?? ''}
         {formatPeriod(periodType, period)}
       </Text>
       <Pressable
-        style={[styles.periodArrow, atCurrent && styles.periodArrowDisabled]}
-        disabled={atCurrent}
+        style={[styles.periodArrow, nextDisabled && styles.periodArrowDisabled]}
+        disabled={nextDisabled}
         onPress={() => onChange(shiftPeriod(periodType, period, 1))}
       >
         <Text
-          style={[styles.periodArrowText, atCurrent && styles.periodArrowTextDisabled]}
+          style={[styles.periodArrowText, nextDisabled && styles.periodArrowTextDisabled]}
         >
           ›
         </Text>

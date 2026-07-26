@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
+  Image,
   Platform,
   Pressable,
   StyleSheet,
@@ -10,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { pickReceiptPhoto } from '../utils/receipts';
 import { useApp, useCategories, useTheme } from '../context/AppContext';
 import { font, radius, scale, spacing, ThemeColors } from '../theme';
 import {
@@ -35,6 +37,7 @@ export interface TransactionValues {
   date: string;
   shared: boolean;
   categoryId?: string;
+  photoUri?: string;
   repeat: RepeatOption;
 }
 
@@ -74,6 +77,24 @@ export function TransactionForm({
   );
   const [repeat, setRepeat] = useState<RepeatOption>('none');
   const [showPicker, setShowPicker] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | undefined>(initial?.photoUri);
+
+  const pickPhoto = async (fromCamera: boolean) => {
+    try {
+      const stored = await pickReceiptPhoto(fromCamera);
+      if (stored) setPhotoUri(stored);
+    } catch (e) {
+      Alert.alert('Could not add photo', String(e));
+    }
+  };
+
+  const addPhoto = () => {
+    Alert.alert('Receipt photo', 'Attach a photo of the receipt', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Take photo', onPress: () => pickPhoto(true) },
+      { text: 'Choose from library', onPress: () => pickPhoto(false) },
+    ]);
+  };
 
   const multiPerson = state.people.length > 1;
   const isExpense = type === 'expense';
@@ -97,6 +118,7 @@ export function TransactionForm({
       date,
       shared: isExpense && (multiPerson ? shared : false),
       categoryId: isExpense ? categoryId : undefined,
+      photoUri,
       repeat,
     });
   };
@@ -213,6 +235,22 @@ export function TransactionForm({
         </Card>
       ) : null}
 
+      <Card>
+        <Label>Receipt photo</Label>
+        {photoUri ? (
+          <View>
+            <Image source={{ uri: photoUri }} style={styles.photo} resizeMode="cover" />
+            <Pressable onPress={() => setPhotoUri(undefined)} hitSlop={8}>
+              <Text style={styles.photoRemove}>Remove photo</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable style={styles.dateButton} onPress={addPhoto}>
+            <Text style={styles.dateText}>📷  Add photo</Text>
+          </Pressable>
+        )}
+      </Card>
+
       {showRepeat ? (
         <Card>
           <Label>Repeat</Label>
@@ -294,5 +332,17 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: font.small,
       color: colors.textSecondary,
       marginTop: spacing.m,
+    },
+    photo: {
+      width: '100%',
+      height: scale(160),
+      borderRadius: radius.m,
+      backgroundColor: colors.background,
+    },
+    photoRemove: {
+      marginTop: spacing.s,
+      color: colors.expense,
+      fontSize: font.body,
+      fontWeight: '600',
     },
   });

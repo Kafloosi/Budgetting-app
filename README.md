@@ -13,7 +13,12 @@ A simple, phone-first budgeting app for one or more people. Built with **Expo / 
   - **Percentage** — each person pays a custom percentage of the total (must add up to 100%).
   - **Equal payments** — based on income: each person pays in proportion to what they earn, so the burden is equal. Falls back to an even split when no incomes are set.
   - The app shows who paid what, each person's share, and the minimal set of payments to settle up.
-- **History** — saved split calculations with a **Monthly / Weekly** toggle, grouped by period and sorted latest first.
+- **History** — saved split calculations with a **Monthly / Weekly** toggle, grouped by period and sorted latest first, with a **mark-as-paid** toggle per settlement.
+- **Budget alerts** — optional notifications when a category reaches 85% or exceeds its monthly budget.
+- **Savings goals** — targets with optional deadline, manual contributions, progress bars, and a suggested monthly set-aside.
+- **Receipt photos** — attach a camera/library photo to any entry; unreferenced photo files are cleaned up automatically.
+- **Year view** — Stats can switch between month view and a full-year overview (12-month chart + yearly category breakdown).
+- **Quick add** — long-press the app icon for an "Add entry" shortcut.
 - **Categories** — every expense gets a category (10 built-in + your own custom ones).
 - **Recurring entries** — set an entry to repeat weekly, bi-weekly, or monthly (rent, salary, subscriptions); future occurrences are added automatically.
 - **Editing** — tap any entry to edit it, pick any past date when adding.

@@ -16,11 +16,16 @@ import { useApp, useCategories, usePeopleById, useTheme } from '../context/AppCo
 import { font, radius, scale, spacing, ThemeColors, ThemeMode } from '../theme';
 import {
   centsToInput,
+  currentMonthKey,
   FREQUENCY_LABEL,
   formatCents,
   formatDate,
+  formatMonth,
   parseAmountToCents,
+  shiftMonth,
 } from '../utils/money';
+import { ensureNotificationPermission } from '../utils/alerts';
+import { goalProgress } from '../utils/goals';
 import { DEFAULT_CATEGORIES } from '../categories';
 import {
   Card,
@@ -28,6 +33,7 @@ import {
   EmptyState,
   Input,
   Label,
+  PeriodNav,
   PrimaryButton,
   Row,
   screenChrome,
@@ -106,6 +112,9 @@ export default function SettingsScreen() {
     removeCategory,
     setBudget,
     setAppLock,
+    setBudgetAlerts,
+    addGoal,
+    removeGoal,
     replaceState,
   } = useApp();
   const { colors, mode, setMode } = useTheme();
@@ -116,6 +125,37 @@ export default function SettingsScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newCatName, setNewCatName] = useState('');
   const [newCatEmoji, setNewCatEmoji] = useState('');
+  const [goalName, setGoalName] = useState('');
+  const [goalTarget, setGoalTarget] = useState('');
+  const [goalDeadline, setGoalDeadline] = useState<string | undefined>();
+
+  const submitGoal = () => {
+    const name = goalName.trim();
+    const targetCents = parseAmountToCents(goalTarget);
+    if (!name || !targetCents) {
+      Alert.alert('Missing details', 'Enter a goal name and a target amount like 3000.');
+      return;
+    }
+    addGoal({ name, targetCents, deadline: goalDeadline });
+    setGoalName('');
+    setGoalTarget('');
+    setGoalDeadline(undefined);
+  };
+
+  const toggleBudgetAlerts = async (enabled: boolean) => {
+    if (!enabled) {
+      setBudgetAlerts(false);
+      return;
+    }
+    if (await ensureNotificationPermission()) {
+      setBudgetAlerts(true);
+    } else {
+      Alert.alert(
+        'Notifications blocked',
+        'Allow notifications for this app in your phone settings to get budget alerts.',
+      );
+    }
+  };
 
   const confirmRemovePerson = (person: Person) => {
     Alert.alert(
@@ -328,6 +368,67 @@ export default function SettingsScreen() {
         ))}
       </Card>
 
+      <Label>Savings goals</Label>
+      <Card>
+        {state.goals.map((goal) => (
+          <Row key={goal.id} style={styles.listRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle} numberOfLines={1}>
+                {goalProgress(goal).done ? '🏆' : '🎯'} {goal.name}
+              </Text>
+              <Text style={styles.mutedSmall}>
+                {formatCents(goal.savedCents)} of {formatCents(goal.targetCents)}
+                {goal.deadline ? ` · by ${formatMonth(goal.deadline)}` : ''}
+              </Text>
+            </View>
+            <Pressable onPress={() => removeGoal(goal.id)} hitSlop={8}>
+              <Text style={styles.danger}>Remove</Text>
+            </Pressable>
+          </Row>
+        ))}
+        <Input
+          style={{ marginBottom: spacing.s }}
+          value={goalName}
+          onChangeText={setGoalName}
+          placeholder="Goal name, e.g. Vacation"
+        />
+        <Input
+          style={{ marginBottom: spacing.s }}
+          value={goalTarget}
+          onChangeText={setGoalTarget}
+          placeholder="Target amount, e.g. 3000"
+          keyboardType="decimal-pad"
+        />
+        {goalDeadline ? (
+          <View style={{ marginBottom: spacing.s }}>
+            <PeriodNav
+              periodType="month"
+              period={goalDeadline}
+              onChange={setGoalDeadline}
+              allowFuture
+              min={shiftMonth(currentMonthKey(), 1)}
+              prefix="by "
+            />
+            <Pressable onPress={() => setGoalDeadline(undefined)} hitSlop={8}>
+              <Text style={[styles.danger, { marginBottom: spacing.m }]}>
+                Clear target month
+              </Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable
+            onPress={() => setGoalDeadline(shiftMonth(currentMonthKey(), 6))}
+            style={{ marginBottom: spacing.m }}
+          >
+            <Text style={styles.link}>+ Set a target month (optional)</Text>
+          </Pressable>
+        )}
+        <PrimaryButton label="Add goal" onPress={submitGoal} />
+        <Text style={[styles.mutedSmall, { marginTop: spacing.s }]}>
+          Track progress and add money in the Stats tab.
+        </Text>
+      </Card>
+
       <Label>Custom categories</Label>
       <Card>
         {state.customCategories.map((c) => (
@@ -382,6 +483,24 @@ export default function SettingsScreen() {
         </Text>
       </Card>
 
+      <Label>Notifications</Label>
+      <Card>
+        <Row>
+          <View style={{ flex: 1, paddingRight: spacing.m }}>
+            <Text style={styles.rowTitle}>Budget alerts</Text>
+            <Text style={styles.mutedSmall}>
+              Get notified when a category reaches 85% or goes over its monthly budget.
+            </Text>
+          </View>
+          <Switch
+            value={state.settings.budgetAlerts}
+            onValueChange={toggleBudgetAlerts}
+            trackColor={{ true: colors.primary, false: colors.border }}
+            thumbColor={colors.white}
+          />
+        </Row>
+      </Card>
+
       <Label>Security</Label>
       <Card>
         <Row>
@@ -422,7 +541,8 @@ export default function SettingsScreen() {
         <Text style={[styles.mutedSmall, { marginTop: spacing.m }]}>
           Everything is stored on this phone only. Export a backup before
           switching phones, and share the JSON with another phone to copy your
-          budget there (import replaces that phone's data).
+          budget there (import replaces that phone's data). Receipt photos are
+          not included in backups.
         </Text>
       </Card>
     </ScrollView>

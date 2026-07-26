@@ -15,11 +15,14 @@ export const emptyState: AppState = {
   recurring: [],
   customCategories: [],
   budgets: {},
+  goals: [],
+  budgetAlertLog: {},
   settings: {
     themeMode: 'auto',
     onboarded: false,
     currencyCode: 'EUR',
     appLock: false,
+    budgetAlerts: false,
   },
 };
 
@@ -47,12 +50,15 @@ function migrate(parsed: Partial<AppState>): AppState {
     recurring: parsed.recurring ?? [],
     customCategories: parsed.customCategories ?? [],
     budgets: parsed.budgets ?? {},
+    goals: parsed.goals ?? [],
+    budgetAlertLog: parsed.budgetAlertLog ?? {},
     settings: {
       themeMode: parsed.settings?.themeMode ?? 'auto',
       // Existing installs that already have people skip onboarding
       onboarded: parsed.settings?.onboarded ?? people.length > 0,
       currencyCode: parsed.settings?.currencyCode ?? 'EUR',
       appLock: parsed.settings?.appLock ?? false,
+      budgetAlerts: parsed.settings?.budgetAlerts ?? false,
     },
   };
 }

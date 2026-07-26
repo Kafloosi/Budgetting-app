@@ -1,51 +1,63 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp, useCategories, useTheme } from '../context/AppContext';
-import { font, scale, spacing, ThemeColors } from '../theme';
+import { font, radius, scale, spacing, ThemeColors } from '../theme';
 import {
-  currentMonthKey,
+  currentPeriodKey,
   formatCents,
   formatMonth,
+  formatPeriod,
   monthKey,
+  parseAmountToCents,
+  periodOfDate,
   shiftMonth,
 } from '../utils/money';
+import { goalProgress } from '../utils/goals';
+import { NEAR_THRESHOLD } from '../utils/alerts';
 import {
   Card,
   EmptyState,
+  Input,
   Label,
   PeriodNav,
+  PrimaryButton,
   Row,
   screenChrome,
   ScreenTitle,
+  SegmentedControl,
   useThemedStyles,
 } from '../components/ui';
-import { Category } from '../types';
+import { Goal } from '../types';
 
 const TREND_MONTHS = 6;
 
-/** A labeled horizontal meter: category name, value text, and a filled bar */
+type StatsView = 'month' | 'year';
+
+/** A labeled horizontal meter: name, value text, and a filled progress bar */
 function MeterRow({
-  category,
+  label,
   right,
   rightColor,
   ratio,
   barColor,
   below,
+  belowColor,
   styles,
 }: {
-  category: Category;
+  label: string;
   right: string;
   rightColor?: string;
   ratio: number;
   barColor: string;
   below?: string;
+  belowColor?: string;
   styles: ReturnType<typeof makeStyles>;
 }) {
   return (
     <View style={styles.catRow}>
       <Row style={{ justifyContent: 'space-between' }}>
         <Text style={styles.catName} numberOfLines={1}>
-          {category.emoji} {category.name}
+          {label}
         </Text>
         <Text style={[styles.catAmount, rightColor ? { color: rightColor } : null]}>
           {right}
@@ -62,34 +74,48 @@ function MeterRow({
           ]}
         />
       </View>
-      {below ? <Text style={styles.overText}>{below}</Text> : null}
+      {below ? (
+        <Text style={[styles.belowText, belowColor ? { color: belowColor } : null]}>
+          {below}
+        </Text>
+      ) : null}
     </View>
   );
 }
 
 export default function StatsScreen() {
-  const { state } = useApp();
+  const { state, addToGoal } = useApp();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { byId: categoryById } = useCategories();
-  const [month, setMonth] = useState(currentMonthKey());
+  const [view, setView] = useState<StatsView>('month');
+  const [period, setPeriod] = useState(currentPeriodKey('month'));
+  const [fundingGoal, setFundingGoal] = useState<Goal | null>(null);
+  const [fundAmount, setFundAmount] = useState('');
+
+  const changeView = (v: StatsView) => {
+    setView(v);
+    setPeriod(currentPeriodKey(v));
+  };
 
   // One pass over all transactions: per-month income/expense buckets for the
-  // trend, and per-category expense totals for the selected month.
+  // trend chart, and per-category expense totals for the selected period.
   const { trend, byCategory } = useMemo(() => {
-    const trendMonths = Array.from({ length: TREND_MONTHS }, (_, i) =>
-      shiftMonth(month, i - (TREND_MONTHS - 1)),
-    );
+    const trendMonths =
+      view === 'month'
+        ? Array.from({ length: TREND_MONTHS }, (_, i) =>
+            shiftMonth(period, i - (TREND_MONTHS - 1)),
+          )
+        : Array.from({ length: 12 }, (_, i) => `${period}-${String(i + 1).padStart(2, '0')}`);
     const buckets = new Map(
       trendMonths.map((m) => [m, { month: m, income: 0, expense: 0 }]),
     );
     const categoryTotals = new Map<string, number>();
 
     for (const t of state.transactions) {
-      const m = monthKey(t.date);
-      const bucket = buckets.get(m);
+      const bucket = buckets.get(monthKey(t.date));
       if (bucket) bucket[t.type] += t.amountCents;
-      if (t.type === 'expense' && m === month) {
+      if (t.type === 'expense' && periodOfDate(view, t.date) === period) {
         const id = categoryById(t.categoryId).id;
         categoryTotals.set(id, (categoryTotals.get(id) ?? 0) + t.amountCents);
       }
@@ -101,10 +127,13 @@ export default function StatsScreen() {
         .map(([id, cents]) => ({ category: categoryById(id), cents }))
         .sort((a, b) => b.cents - a.cents),
     };
-  }, [state.transactions, month, categoryById]);
+  }, [state.transactions, view, period, categoryById]);
 
   const trendMax = Math.max(1, ...trend.flatMap((t) => [t.income, t.expense]));
-  const monthExpenseTotal = byCategory.reduce((s, e) => s + e.cents, 0);
+  const periodExpenseTotal = byCategory.reduce((s, e) => s + e.cents, 0);
+  const periodLabel = formatPeriod(view, period);
+  const barLabel = (m: string) => formatMonth(m).slice(0, view === 'month' ? 3 : 1);
+  const barBase = [styles.bar, view === 'year' && styles.barNarrow];
 
   const budgetRows = useMemo(
     () =>
@@ -118,12 +147,35 @@ export default function StatsScreen() {
     [state.budgets, byCategory, categoryById],
   );
 
+  const confirmFund = () => {
+    if (!fundingGoal) return;
+    const cents = parseAmountToCents(fundAmount);
+    if (!cents) {
+      Alert.alert('Invalid amount', 'Enter an amount like 50');
+      return;
+    }
+    addToGoal(fundingGoal.id, cents);
+    setFundingGoal(null);
+    setFundAmount('');
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <ScreenTitle title="Stats" subtitle="Where the money goes" />
-      <PeriodNav periodType="month" period={month} onChange={setMonth} />
 
-      {state.transactions.length === 0 ? (
+      <View style={{ marginBottom: spacing.l }}>
+        <SegmentedControl
+          options={[
+            { value: 'month', label: 'Month' },
+            { value: 'year', label: 'Year' },
+          ]}
+          value={view}
+          onChange={changeView}
+        />
+      </View>
+      <PeriodNav periodType={view} period={period} onChange={setPeriod} />
+
+      {state.transactions.length === 0 && state.goals.length === 0 ? (
         <EmptyState
           icon="📊"
           message="Charts appear here once you add some incomes and expenses."
@@ -131,14 +183,16 @@ export default function StatsScreen() {
       ) : (
         <>
           <Card>
-            <Label>Income vs expenses · last {TREND_MONTHS} months</Label>
+            <Label>
+              {`Income vs expenses · ${view === 'month' ? `last ${TREND_MONTHS} months` : period}`}
+            </Label>
             <Row style={styles.chartRow}>
               {trend.map((t) => (
                 <View key={t.month} style={styles.chartCol}>
                   <View style={styles.barsArea}>
                     <View
                       style={[
-                        styles.bar,
+                        barBase,
                         {
                           backgroundColor: colors.income,
                           height: Math.max(2, (t.income / trendMax) * scale(110)),
@@ -147,7 +201,7 @@ export default function StatsScreen() {
                     />
                     <View
                       style={[
-                        styles.bar,
+                        barBase,
                         {
                           backgroundColor: colors.expense,
                           height: Math.max(2, (t.expense / trendMax) * scale(110)),
@@ -158,10 +212,11 @@ export default function StatsScreen() {
                   <Text
                     style={[
                       styles.chartLabel,
-                      t.month === month && { color: colors.primary, fontWeight: '700' },
+                      view === 'month' &&
+                        t.month === period && { color: colors.primary, fontWeight: '700' },
                     ]}
                   >
-                    {formatMonth(t.month).slice(0, 3)}
+                    {barLabel(t.month)}
                   </Text>
                 </View>
               ))}
@@ -180,16 +235,16 @@ export default function StatsScreen() {
           </Card>
 
           <Card>
-            <Label>Spending by category · {formatMonth(month)}</Label>
+            <Label>Spending by category · {periodLabel}</Label>
             {byCategory.length === 0 ? (
-              <Text style={styles.emptyText}>No expenses in this month.</Text>
+              <Text style={styles.emptyText}>No expenses in this {view}.</Text>
             ) : (
               byCategory.map(({ category, cents }) => {
-                const share = monthExpenseTotal > 0 ? cents / monthExpenseTotal : 0;
+                const share = periodExpenseTotal > 0 ? cents / periodExpenseTotal : 0;
                 return (
                   <MeterRow
                     key={category.id}
-                    category={category}
+                    label={`${category.emoji} ${category.name}`}
                     right={`${formatCents(cents)}  ${Math.round(share * 100)}%`}
                     ratio={share}
                     barColor={colors.primary}
@@ -200,35 +255,110 @@ export default function StatsScreen() {
             )}
           </Card>
 
+          {view === 'month' ? (
+            <Card>
+              <Label>Budgets · {periodLabel}</Label>
+              {budgetRows.length === 0 ? (
+                <Text style={styles.emptyText}>
+                  No budgets set. Add monthly limits per category in the Settings tab.
+                </Text>
+              ) : (
+                budgetRows.map(({ category, limitCents, spent }) => {
+                  const ratio = spent / limitCents;
+                  const over = ratio > 1;
+                  return (
+                    <MeterRow
+                      key={category.id}
+                      label={`${category.emoji} ${category.name}`}
+                      right={`${formatCents(spent)} / ${formatCents(limitCents)}`}
+                      rightColor={over ? colors.expense : undefined}
+                      ratio={ratio}
+                      barColor={
+                        over
+                          ? colors.expense
+                          : ratio >= NEAR_THRESHOLD
+                            ? colors.warning
+                            : colors.income
+                      }
+                      below={over ? `${formatCents(spent - limitCents)} over budget` : undefined}
+                      belowColor={colors.expense}
+                      styles={styles}
+                    />
+                  );
+                })
+              )}
+            </Card>
+          ) : null}
+
           <Card>
-            <Label>Budgets · {formatMonth(month)}</Label>
-            {budgetRows.length === 0 ? (
+            <Label>Savings goals</Label>
+            {state.goals.length === 0 ? (
               <Text style={styles.emptyText}>
-                No budgets set. Add monthly limits per category in the Settings tab.
+                No goals yet. Create one in the Settings tab — e.g. “Vacation €3.000”.
               </Text>
             ) : (
-              budgetRows.map(({ category, limitCents, spent }) => {
-                const ratio = spent / limitCents;
-                const over = ratio > 1;
+              state.goals.map((goal) => {
+                const { ratio, done, monthlySuggestionCents } = goalProgress(goal);
                 return (
-                  <MeterRow
-                    key={category.id}
-                    category={category}
-                    right={`${formatCents(spent)} / ${formatCents(limitCents)}`}
-                    rightColor={over ? colors.expense : undefined}
-                    ratio={ratio}
-                    barColor={
-                      over ? colors.expense : ratio > 0.85 ? colors.warning : colors.income
-                    }
-                    below={over ? `${formatCents(spent - limitCents)} over budget` : undefined}
-                    styles={styles}
-                  />
+                  <View key={goal.id} style={styles.goalRow}>
+                    <MeterRow
+                      label={`${done ? '🏆' : '🎯'} ${goal.name}`}
+                      right={`${formatCents(goal.savedCents)} / ${formatCents(goal.targetCents)}`}
+                      ratio={ratio}
+                      barColor={done ? colors.income : colors.primary}
+                      below={
+                        monthlySuggestionCents && goal.deadline
+                          ? `Save ${formatCents(monthlySuggestionCents)} / month to reach it by ${formatMonth(goal.deadline)}`
+                          : undefined
+                      }
+                      belowColor={colors.textSecondary}
+                      styles={styles}
+                    />
+                    {!done ? (
+                      <Pressable
+                        style={styles.fundButton}
+                        onPress={() => setFundingGoal(goal)}
+                      >
+                        <Text style={styles.fundLabel}>+ Add money</Text>
+                      </Pressable>
+                    ) : (
+                      <Text style={styles.goalDone}>Goal reached! 🎉</Text>
+                    )}
+                  </View>
                 );
               })
             )}
           </Card>
         </>
       )}
+
+      {fundingGoal ? (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setFundingGoal(null)}>
+          <View style={styles.modalBackdrop}>
+            <Card style={styles.modalCard}>
+              <Label>Add to “{fundingGoal.name}”</Label>
+              <Input
+                value={fundAmount}
+                onChangeText={setFundAmount}
+                placeholder="0,00"
+                keyboardType="decimal-pad"
+                returnKeyType="done"
+                autoFocus
+                onSubmitEditing={confirmFund}
+              />
+              <Row style={{ marginTop: spacing.m }}>
+                <PrimaryButton
+                  label="Cancel"
+                  onPress={() => setFundingGoal(null)}
+                  color={colors.textSecondary}
+                  style={{ flex: 1, marginRight: spacing.s }}
+                />
+                <PrimaryButton label="Add" onPress={confirmFund} style={{ flex: 1 }} />
+              </Row>
+            </Card>
+          </View>
+        </Modal>
+      ) : null}
     </ScrollView>
   );
 }
@@ -254,6 +384,10 @@ const makeStyles = (colors: ThemeColors) =>
       width: scale(9),
       borderRadius: scale(3),
       marginHorizontal: scale(1.5),
+    },
+    barNarrow: {
+      width: scale(4.5),
+      marginHorizontal: scale(1),
     },
     chartLabel: {
       marginTop: spacing.xs,
@@ -300,10 +434,42 @@ const makeStyles = (colors: ThemeColors) =>
       height: '100%',
       borderRadius: scale(4),
     },
-    overText: {
+    belowText: {
       marginTop: 2,
       fontSize: font.small,
       color: colors.expense,
       fontWeight: '600',
+    },
+    goalRow: {
+      marginBottom: spacing.l,
+    },
+    goalDone: {
+      marginTop: spacing.xs,
+      fontSize: font.small,
+      color: colors.income,
+      fontWeight: '600',
+    },
+    fundButton: {
+      marginTop: spacing.s,
+      alignSelf: 'flex-start',
+      borderWidth: 1,
+      borderColor: colors.primary,
+      borderRadius: radius.m,
+      paddingHorizontal: spacing.m,
+      paddingVertical: scale(6),
+    },
+    fundLabel: {
+      color: colors.primary,
+      fontSize: font.body,
+      fontWeight: '700',
+    },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'center',
+      padding: spacing.xl,
+    },
+    modalCard: {
+      marginBottom: 0,
     },
   });

@@ -1,4 +1,4 @@
-import { IncomeFrequency, PeriodType } from '../types';
+import { IncomeFrequency, NavPeriodType } from '../types';
 
 export interface Currency {
   code: string;
@@ -153,22 +153,36 @@ export function formatWeek(key: string): string {
   return `Week ${Number(weekStr)} · ${range} ${yearStr}`;
 }
 
-// ---- Generic period helpers (month or week) ----
+// ---- Generic period helpers (month, week, or year for navigation) ----
 
-export function currentPeriodKey(type: PeriodType): string {
+export type { NavPeriodType } from '../types';
+
+export function currentPeriodKey(type: NavPeriodType): string {
+  if (type === 'year') return String(new Date().getUTCFullYear());
   return type === 'month' ? currentMonthKey() : currentWeekKey();
 }
 
-export function shiftPeriod(type: PeriodType, key: string, delta: number): string {
+export function shiftPeriod(type: NavPeriodType, key: string, delta: number): string {
+  if (type === 'year') return String(Number(key) + delta);
   return type === 'month' ? shiftMonth(key, delta) : shiftWeek(key, delta);
 }
 
-export function formatPeriod(type: PeriodType, key: string): string {
+export function formatPeriod(type: NavPeriodType, key: string): string {
+  if (type === 'year') return key;
   return type === 'month' ? formatMonth(key) : formatWeek(key);
 }
 
-export function periodOfDate(type: PeriodType, isoDate: string): string {
+/** The period key (of the given kind) that a date falls into */
+export function periodOfDate(type: NavPeriodType, isoDate: string): string {
+  if (type === 'year') return isoDate.slice(0, 4);
   return type === 'month' ? monthKey(isoDate) : isoWeekKey(isoDate);
+}
+
+/** Whole months from the current month until `deadline` (yyyy-mm), min 1 */
+export function monthsUntil(deadline: string, from = currentMonthKey()): number {
+  const [fy, fm] = from.split('-').map(Number);
+  const [dy, dm] = deadline.split('-').map(Number);
+  return Math.max(1, (dy - fy) * 12 + (dm - fm));
 }
 
 export function todayIso(): string {

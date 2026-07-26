@@ -21,7 +21,7 @@ const METHOD_LABEL: Record<SplitMethod, string> = {
 };
 
 export default function HistoryScreen() {
-  const { state, removeSettlement } = useApp();
+  const { state, removeSettlement, toggleSettlementPaid } = useApp();
   const styles = useThemedStyles(makeStyles);
   const [view, setView] = useState<PeriodType>('month');
 
@@ -98,6 +98,18 @@ export default function HistoryScreen() {
                   → {t.fromName} pays {t.toName} {formatCents(t.amountCents)}
                 </Text>
               ))}
+              {item.transfers.length > 0 ? (
+                <Pressable
+                  style={[styles.paidButton, item.settledAt && styles.paidButtonDone]}
+                  onPress={() => toggleSettlementPaid(item.id)}
+                >
+                  <Text style={[styles.paidLabel, item.settledAt && styles.paidLabelDone]}>
+                    {item.settledAt
+                      ? `✓ Paid on ${item.settledAt.slice(0, 10)} — tap to undo`
+                      : 'Mark as paid'}
+                  </Text>
+                </Pressable>
+              ) : null}
               <Text style={styles.savedAt}>
                 Saved {item.createdAt.slice(0, 10)}
               </Text>
@@ -145,5 +157,19 @@ const makeStyles = (colors: ThemeColors) =>
     resultName: { fontSize: font.body, fontWeight: '600', color: colors.text },
     resultDetail: { fontSize: font.small, color: colors.textSecondary },
     transfer: { fontSize: font.body, color: colors.primary, marginTop: spacing.s, fontWeight: '600' },
+    paidButton: {
+      marginTop: spacing.m,
+      borderRadius: radius.m,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      paddingVertical: scale(9),
+      alignItems: 'center',
+    },
+    paidButtonDone: {
+      borderColor: colors.income,
+      backgroundColor: colors.incomeSoft,
+    },
+    paidLabel: { color: colors.primary, fontSize: font.body, fontWeight: '700' },
+    paidLabelDone: { color: colors.income },
     savedAt: { fontSize: font.small, color: colors.textSecondary, marginTop: spacing.m },
   });
