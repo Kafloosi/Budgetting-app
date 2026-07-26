@@ -44,12 +44,14 @@ yarn-error.*
 # gstack is cloned + built locally by scripts/setup-gstack.sh (~1.6 GB).
 # The per-skill folders beside it are symlinks into that clone, so they are
 # generated too — committing them would leave broken links in a fresh checkout.
-.claude/skills/
+.claude/skills/*
 
-# impeccable is installed per-environment with `npx impeccable install`, which
-# writes a skill copy and hooks for every harness it detects. Treated like
-# gstack above: reinstall it in a new environment rather than vendoring ~3 MB
-# of generated skill content per harness into the repo.
+# impeccable is the exception: 123 real files, no symlinks, ~3 MB. It is
+# committed so a new session has /impeccable with nothing to install.
+!.claude/skills/impeccable/
+
+# Machine-local settings, and the byte-identical GitHub Copilot copy of the
+# impeccable skill — regenerate both with `npx impeccable install`.
 .claude/settings.local.json
 .github/skills/
 .github/hooks/
