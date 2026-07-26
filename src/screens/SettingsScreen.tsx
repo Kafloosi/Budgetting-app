@@ -23,6 +23,7 @@ import { font, radius, scale, spacing, ThemeColors, ThemeMode } from '../theme';
 import {
   centsToInput,
   currentMonthKey,
+  FREQUENCY_OPTIONS,
   FREQUENCY_LABEL,
   formatCents,
   formatDate,
@@ -62,7 +63,8 @@ import {
   serializeBackup,
   transactionsToCsv,
 } from '../storage';
-import { Category, Person, RecurringRule } from '../types';
+import { decryptBackup, encryptBackup, isEncryptedBackup } from '../utils/backupCrypto';
+import { Category, IncomeFrequency, Person, RecurringRule } from '../types';
 
 const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
   { value: 'light', label: 'Light' },
@@ -122,6 +124,7 @@ export default function SettingsScreen() {
     updatePerson,
     removePerson,
     removeRecurring,
+    updateRecurring,
     addCategory,
     removeCategory,
     setBudget,
@@ -143,6 +146,32 @@ export default function SettingsScreen() {
   const personById = usePeopleById();
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [ruleAmount, setRuleAmount] = useState('');
+  const [ruleNote, setRuleNote] = useState('');
+  const [ruleFrequency, setRuleFrequency] = useState<IncomeFrequency>('monthly');
+
+  const startEditRule = (rule: RecurringRule) => {
+    setEditingRuleId(rule.id);
+    setRuleAmount(centsToInput(rule.amountCents));
+    setRuleNote(rule.note);
+    setRuleFrequency(rule.frequency);
+  };
+
+  const saveRule = (rule: RecurringRule) => {
+    const amountCents = parseAmountToCents(ruleAmount);
+    if (!amountCents) {
+      Alert.alert('Invalid amount', 'Enter an amount like 950');
+      return;
+    }
+    updateRecurring(rule.id, {
+      amountCents,
+      note: ruleNote.trim(),
+      frequency: ruleFrequency,
+    });
+    setEditingRuleId(null);
+  };
+
   const [newCatName, setNewCatName] = useState('');
   const [newCatParent, setNewCatParent] = useState<string | undefined>();
   const [goalName, setGoalName] = useState('');
@@ -194,6 +223,11 @@ export default function SettingsScreen() {
   };
 
   const [restoring, setRestoring] = useState(false);
+  const [backupPassword, setBackupPassword] = useState('');
+  const [includePhotos, setIncludePhotos] = useState(true);
+  const [pendingImport, setPendingImport] = useState<string | null>(null);
+  const [importPassword, setImportPassword] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
   const confirmErase = () => {
     Alert.alert(
       'Delete all data',
@@ -345,6 +379,22 @@ export default function SettingsScreen() {
     }
   };
 
+  const applyImport = async (text: string) => {
+    const next = await parseBackup(text, state.settings.premium);
+    if (!next) {
+      Alert.alert('Invalid file', 'This does not look like a budget backup.');
+      return;
+    }
+    Alert.alert(
+      'Import backup',
+      `Replace everything with this backup? It contains ${next.people.length} people and ${next.transactions.length} entries. Your current data will be overwritten.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Import', style: 'destructive', onPress: () => replaceState(next) },
+      ],
+    );
+  };
+
   const importJson = async () => {
     try {
       const res = await DocumentPicker.getDocumentAsync({
@@ -353,21 +403,40 @@ export default function SettingsScreen() {
       });
       if (res.canceled || !res.assets?.[0]) return;
       const text = await FileSystem.readAsStringAsync(res.assets[0].uri);
-      const next = parseBackup(text, state.settings.premium);
-      if (!next) {
-        Alert.alert('Invalid file', 'This does not look like a budget backup.');
+      if (isEncryptedBackup(text)) {
+        setPendingImport(text);
         return;
       }
-      Alert.alert(
-        'Import backup',
-        `Replace everything with this backup? It contains ${next.people.length} people and ${next.transactions.length} entries. Your current data will be overwritten.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Import', style: 'destructive', onPress: () => replaceState(next) },
-        ],
-      );
+      await applyImport(text);
     } catch (e) {
       Alert.alert('Import failed', String(e));
+    }
+  };
+
+  const unlockImport = async () => {
+    if (!pendingImport) return;
+    const plaintext = decryptBackup(pendingImport, importPassword);
+    if (!plaintext) {
+      Alert.alert('Wrong password', 'That password does not open this backup.');
+      return;
+    }
+    setPendingImport(null);
+    setImportPassword('');
+    await applyImport(plaintext);
+  };
+
+  const exportBackup = async () => {
+    setBusy('Preparing backup…');
+    try {
+      const plain = await serializeBackup(state, includePhotos);
+      const contents = backupPassword.trim()
+        ? encryptBackup(plain, backupPassword.trim())
+        : plain;
+      await shareFile(backupFilename(), contents, 'application/json');
+    } catch (e) {
+      Alert.alert('Export failed', String(e));
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -503,25 +572,69 @@ export default function SettingsScreen() {
             added automatically.
           </Text>
         ) : (
-          state.recurring.map((rule) => (
-            <Row key={rule.id} style={styles.listRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rowTitle} numberOfLines={1}>
-                  {rule.note || (rule.type === 'income' ? 'Income' : 'Expense')}
-                </Text>
-                <Text style={styles.mutedSmall}>
-                  {rule.type === 'income' ? '+' : '-'}
-                  {formatCents(rule.amountCents)} · every{' '}
-                  {FREQUENCY_LABEL[rule.frequency]} ·{' '}
-                  {personById.get(rule.personId)?.name ?? '?'} · since{' '}
-                  {formatDate(rule.anchorDate)}
-                </Text>
+          state.recurring.map((rule) => {
+            const editing = editingRuleId === rule.id;
+            return (
+              <View key={rule.id} style={styles.listRow}>
+                <Row>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rowTitle} numberOfLines={1}>
+                      {rule.note || (rule.type === 'income' ? 'Income' : 'Expense')}
+                    </Text>
+                    <Text style={styles.mutedSmall}>
+                      {rule.type === 'income' ? '+' : '-'}
+                      {formatCents(rule.amountCents)} · every{' '}
+                      {FREQUENCY_LABEL[rule.frequency]} ·{' '}
+                      {personById.get(rule.personId)?.name ?? '?'} · since{' '}
+                      {formatDate(rule.anchorDate)}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => (editing ? setEditingRuleId(null) : startEditRule(rule))}
+                    hitSlop={8}
+                    style={{ marginRight: spacing.l }}
+                  >
+                    <Text style={styles.link}>{editing ? 'Cancel' : 'Edit'}</Text>
+                  </Pressable>
+                  <Pressable onPress={() => confirmRemoveRecurring(rule)} hitSlop={8}>
+                    <Text style={styles.danger}>Stop</Text>
+                  </Pressable>
+                </Row>
+                {editing ? (
+                  <View style={styles.editBox}>
+                    <Label>Amount</Label>
+                    <Input
+                      style={{ marginBottom: spacing.s }}
+                      value={ruleAmount}
+                      onChangeText={setRuleAmount}
+                      keyboardType="decimal-pad"
+                      placeholder="0,00"
+                    />
+                    <Label>Description</Label>
+                    <Input
+                      style={{ marginBottom: spacing.s }}
+                      value={ruleNote}
+                      onChangeText={setRuleNote}
+                      placeholder="e.g. Rent"
+                    />
+                    <Label>Repeats every</Label>
+                    <View style={{ marginBottom: spacing.m }}>
+                      <SegmentedControl
+                        options={FREQUENCY_OPTIONS}
+                        value={ruleFrequency}
+                        onChange={setRuleFrequency}
+                      />
+                    </View>
+                    <PrimaryButton label="Save" onPress={() => saveRule(rule)} />
+                    <Text style={[styles.mutedSmall, { marginTop: spacing.s }]}>
+                      Changes apply to future entries; ones already added keep
+                      their original amount.
+                    </Text>
+                  </View>
+                ) : null}
               </View>
-              <Pressable onPress={() => confirmRemoveRecurring(rule)} hitSlop={8}>
-                <Text style={styles.danger}>Stop</Text>
-              </Pressable>
-            </Row>
-          ))
+            );
+          })
         )}
       </Card>
 
@@ -772,11 +885,33 @@ export default function SettingsScreen() {
 
       <Label>Data</Label>
       <Card>
+        <Label>Password (optional)</Label>
+        <Input
+          value={backupPassword}
+          onChangeText={setBackupPassword}
+          placeholder="Encrypt the backup with a passphrase"
+          autoCapitalize="none"
+          secureTextEntry
+        />
+        <Row style={{ marginTop: spacing.m }}>
+          <View style={{ flex: 1, paddingRight: spacing.m }}>
+            <Text style={styles.rowTitle}>Include receipt photos</Text>
+            <Text style={styles.mutedSmall}>
+              Makes the file much larger, but the backup is then complete.
+            </Text>
+          </View>
+          <Switch
+            value={includePhotos}
+            onValueChange={setIncludePhotos}
+            trackColor={{ true: colors.primary, false: colors.border }}
+            thumbColor={colors.white}
+          />
+        </Row>
         <PrimaryButton
-          label="Export backup (JSON)"
-          onPress={() =>
-            shareFile(backupFilename(), serializeBackup(state), 'application/json')
-          }
+          label={busy ?? 'Export backup'}
+          onPress={exportBackup}
+          disabled={busy !== null}
+          style={{ marginTop: spacing.m }}
         />
         <PrimaryButton
           label="Export entries (CSV)"
@@ -790,13 +925,39 @@ export default function SettingsScreen() {
           style={{ marginTop: spacing.m }}
         />
         <Text style={[styles.mutedSmall, { marginTop: spacing.m }]}>
-          Everything is stored on this phone only. Export a backup before
-          switching phones, and share the JSON with another phone to copy your
-          budget there (import replaces that phone's data). Receipt photos and
-          your Pro unlock are not included — restore Pro with your purchase or
-          unlock code.
+          {backupPassword.trim()
+            ? 'This backup will be encrypted — without the password nobody can read it, and it cannot be recovered if you forget it.'
+            : 'Without a password the backup is readable by anyone who opens the file. Your Pro unlock is never included.'}
         </Text>
       </Card>
+
+      {pendingImport ? (
+        <Card>
+          <Label>This backup is encrypted</Label>
+          <Input
+            value={importPassword}
+            onChangeText={setImportPassword}
+            placeholder="Backup password"
+            autoCapitalize="none"
+            secureTextEntry
+            autoFocus
+            onSubmitEditing={unlockImport}
+          />
+          <Row style={{ marginTop: spacing.m }}>
+            <PrimaryButton
+              label="Cancel"
+              onPress={() => {
+                setPendingImport(null);
+                setImportPassword('');
+              }}
+              color={colors.textSecondary}
+              style={{ flex: 1, marginRight: spacing.s }}
+            />
+            <PrimaryButton label="Open" onPress={unlockImport} style={{ flex: 1 }} />
+          </Row>
+        </Card>
+      ) : null}
+
     </ScrollView>
   );
 }

@@ -78,10 +78,18 @@ interface AppContextValue {
   replaceState: (next: AppState) => void;
   /** Erase every stored trace of the user's data */
   eraseAllData: () => Promise<void>;
-  /** Last deleted entry, offered for undo by the snackbar */
-  undoableTransaction: Transaction | null;
-  undoRemoveTransaction: () => void;
+  updateRecurring: (id: string, patch: Partial<Omit<RecurringRule, 'id'>>) => void;
+  /** Most recent reversible deletion, offered by the undo snackbar */
+  undoAction: UndoAction | null;
+  undo: () => void;
   dismissUndo: () => void;
+}
+
+/** A deletion that can still be taken back, shown by the undo snackbar */
+export interface UndoAction {
+  label: string;
+  /** Restores the exact state that existed before the deletion */
+  restore: AppState;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -89,7 +97,7 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AppState>(emptyState);
   const [loaded, setLoaded] = useState(false);
-  const [undoableTransaction, setUndoableTransaction] = useState<Transaction | null>(null);
+  const [undoAction, setUndoAction] = useState<UndoAction | null>(null);
   const loadedRef = useRef(false);
 
   useEffect(() => {
@@ -194,14 +202,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const removePerson = useCallback((id: string) => {
-    setState((s) => ({
-      ...s,
-      people: s.people.filter((p) => p.id !== id),
-      transactions: s.transactions.filter((t) => t.personId !== id),
-      recurring: s.recurring.filter((r) => r.personId !== id),
-    }));
-  }, []);
+  /**
+   * Run a deletion and remember the state that preceded it, so a single
+   * snackbar can take back any destructive action — not just entries.
+   */
+  const deleteWithUndo = useCallback(
+    (label: string, apply: (s: AppState) => AppState) => {
+      setUndoAction({ label, restore: stateRef.current });
+      setState(apply);
+    },
+    [],
+  );
+
+  const removePerson = useCallback(
+    (id: string) => {
+      const person = stateRef.current.people.find((p) => p.id === id);
+      deleteWithUndo(`Removed ${person?.name ?? 'person'}`, (s) => ({
+        ...s,
+        people: s.people.filter((p) => p.id !== id),
+        transactions: s.transactions.filter((t) => t.personId !== id),
+        recurring: s.recurring.filter((r) => r.personId !== id),
+      }));
+    },
+    [deleteWithUndo],
+  );
 
   const addTransaction = useCallback((t: Omit<Transaction, 'id'>) => {
     setState((s) => ({
@@ -222,26 +246,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  // Any photo file the removed entry referenced is cleaned up by the
-  // reconcileReceipts sweep on next launch. The removed entry is kept
-  // around briefly so the undo snackbar can restore it.
-  const removeTransaction = useCallback((id: string) => {
-    const removed = stateRef.current.transactions.find((t) => t.id === id) ?? null;
-    setUndoableTransaction(removed);
-    setState((s) => ({
-      ...s,
-      transactions: s.transactions.filter((t) => t.id !== id),
-    }));
-  }, []);
+  // Photo files of removed entries are cleaned up by the reconcileReceipts
+  // sweep on next launch, which runs after any undo window has closed.
+  const removeTransaction = useCallback(
+    (id: string) => {
+      const removed = stateRef.current.transactions.find((t) => t.id === id);
+      deleteWithUndo(`Deleted ${removed?.note || 'entry'}`, (s) => ({
+        ...s,
+        transactions: s.transactions.filter((t) => t.id !== id),
+      }));
+    },
+    [deleteWithUndo],
+  );
 
-  const undoRemoveTransaction = useCallback(() => {
-    const removed = undoableTransaction;
-    if (!removed) return;
-    setUndoableTransaction(null);
-    setState((s) => ({ ...s, transactions: [removed, ...s.transactions] }));
-  }, [undoableTransaction]);
+  const undo = useCallback(() => {
+    if (!undoAction) return;
+    const restored = undoAction.restore;
+    setUndoAction(null);
+    setState(restored);
+  }, [undoAction]);
 
-  const dismissUndo = useCallback(() => setUndoableTransaction(null), []);
+  const dismissUndo = useCallback(() => setUndoAction(null), []);
 
   const addRecurring = useCallback(
     (rule: Omit<RecurringRule, 'id' | 'lastAppliedDate'>) => {
@@ -260,15 +285,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const removeRecurring = useCallback((id: string, deleteTransactions: boolean) => {
-    setState((s) => ({
-      ...s,
-      recurring: s.recurring.filter((r) => r.id !== id),
-      transactions: deleteTransactions
-        ? s.transactions.filter((t) => t.recurringId !== id)
-        : s.transactions,
-    }));
-  }, []);
+  const removeRecurring = useCallback(
+    (id: string, deleteTransactions: boolean) => {
+      const rule = stateRef.current.recurring.find((r) => r.id === id);
+      deleteWithUndo(`Stopped ${rule?.note || 'repeat'}`, (s) => ({
+        ...s,
+        recurring: s.recurring.filter((r) => r.id !== id),
+        transactions: deleteTransactions
+          ? s.transactions.filter((t) => t.recurringId !== id)
+          : s.transactions,
+      }));
+    },
+    [deleteWithUndo],
+  );
+
+  const updateRecurring = useCallback(
+    (id: string, patch: Partial<Omit<RecurringRule, 'id'>>) => {
+      setState((s) => ({
+        ...s,
+        recurring: s.recurring.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+      }));
+    },
+    [],
+  );
 
   /** Returns false when the free custom-category allowance is used up */
   const addCategory = useCallback((name: string, parentId?: string): boolean => {
@@ -362,9 +401,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
   }, []);
 
-  const removeGoal = useCallback((id: string) => {
-    setState((s) => ({ ...s, goals: s.goals.filter((g) => g.id !== id) }));
-  }, []);
+  const removeGoal = useCallback(
+    (id: string) => {
+      const goal = stateRef.current.goals.find((g) => g.id === id);
+      deleteWithUndo(`Removed ${goal?.name ?? 'goal'}`, (s) => ({
+        ...s,
+        goals: s.goals.filter((g) => g.id !== id),
+      }));
+    },
+    [deleteWithUndo],
+  );
 
   const addToGoal = useCallback((id: string, cents: number) => {
     setState((s) => ({
@@ -431,6 +477,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         removeTransaction,
         addRecurring,
         removeRecurring,
+        updateRecurring,
         addCategory,
         removeCategory,
         setBudget,
@@ -450,8 +497,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         completeOnboarding,
         replaceState,
         eraseAllData,
-        undoableTransaction,
-        undoRemoveTransaction,
+        undoAction,
+        undo,
         dismissUndo,
       }}
     >

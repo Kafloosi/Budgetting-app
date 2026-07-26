@@ -3,7 +3,11 @@ import { AppState, Person, SettlementRecord } from './types';
 import { catchUp } from './utils/catchup';
 import { todayIso } from './utils/money';
 import { categoryById } from './categories';
-import { reconcileReceipts } from './utils/receipts';
+import {
+  readReceiptPayload,
+  reconcileReceipts,
+  restoreReceiptPayload,
+} from './utils/receipts';
 import { personColors } from './theme';
 
 const STORAGE_KEY = 'budget-app-state-v1';
@@ -125,13 +129,23 @@ export async function saveState(state: AppState): Promise<void> {
 
 // ---- Backups (owned here so the persistence schema has a single owner) ----
 
-export function serializeBackup(state: AppState): string {
+/**
+ * Serialize a backup. With `includePhotos` the receipt images travel with it
+ * (base64), so restoring on a new phone is complete rather than leaving
+ * entries pointing at photos that no longer exist.
+ */
+export async function serializeBackup(
+  state: AppState,
+  includePhotos: boolean,
+): Promise<string> {
+  const receipts = includePhotos ? await readReceiptPayload(state.transactions) : undefined;
   return JSON.stringify(
     {
       app: BACKUP_APP_TAG,
       version: BACKUP_VERSION,
       exportedAt: new Date().toISOString(),
       state,
+      receipts,
     },
     null,
     2,
@@ -146,7 +160,10 @@ export function serializeBackup(state: AppState): string {
  * hand out Pro by sharing an edited export. Restoring on a new phone goes
  * through the purchase or an unlock code instead.
  */
-export function parseBackup(text: string, currentPremium: boolean): AppState | null {
+export async function parseBackup(
+  text: string,
+  currentPremium: boolean,
+): Promise<AppState | null> {
   try {
     const parsed = JSON.parse(text);
     // Accept both the export envelope and a raw state object
@@ -155,8 +172,22 @@ export function parseBackup(text: string, currentPremium: boolean): AppState | n
       return null;
     }
     const migrated = migrate(raw);
+
+    // Restore bundled photos and re-point entries at their new locations
+    let transactions = migrated.transactions;
+    const receipts: Record<string, string> | undefined = parsed?.receipts;
+    if (receipts && Object.keys(receipts).length > 0) {
+      const restored = await restoreReceiptPayload(receipts);
+      transactions = transactions.map((t) => {
+        const name = t.photoUri?.split('/').pop();
+        const uri = name ? restored[name] : undefined;
+        return uri ? { ...t, photoUri: uri } : { ...t, photoUri: undefined };
+      });
+    }
+
     return catchUp({
       ...migrated,
+      transactions,
       settings: { ...migrated.settings, premium: currentPremium },
     });
   } catch {

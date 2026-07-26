@@ -21,6 +21,7 @@ import {
 } from '../utils/money';
 import { monthTotals, expenseCentsByCategory } from '../utils/aggregate';
 import { goalProgress } from '../utils/goals';
+import { rootCategoryId, topLevelCategories } from '../categories';
 import { NEAR_THRESHOLD } from '../utils/alerts';
 import { parseAmountToCents } from '../utils/money';
 import {
@@ -59,6 +60,10 @@ export default function HomeScreen() {
   const [search, setSearch] = useState('');
   const [searchScope, setSearchScope] = useState<SearchScope>('month');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [minAmount, setMinAmount] = useState('');
+  const [maxAmount, setMaxAmount] = useState('');
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [fundingGoal, setFundingGoal] = useState<Goal | null>(null);
   const [fundAmount, setFundAmount] = useState('');
@@ -96,17 +101,40 @@ export default function HomeScreen() {
     () => (allTimeSearch ? [...forPerson].sort(byDateDesc) : []),
     [allTimeSearch, forPerson],
   );
+  const minCents = parseAmountToCents(minAmount);
+  const maxCents = parseAmountToCents(maxAmount);
+  const extraFilterCount =
+    (categoryFilter ? 1 : 0) + (minCents ? 1 : 0) + (maxCents ? 1 : 0);
+
   const visibleTransactions = useMemo(() => {
     const query = search.trim().toLowerCase();
     return (allTimeSearch ? allTimeSorted : monthTransactions)
       .filter((t) => typeFilter === 'all' || t.type === typeFilter)
       .filter(
         (t) =>
+          !categoryFilter ||
+          rootCategoryId(state.customCategories, t.categoryId) === categoryFilter,
+      )
+      .filter((t) => !minCents || t.amountCents >= minCents)
+      .filter((t) => !maxCents || t.amountCents <= maxCents)
+      .filter(
+        (t) =>
           !query ||
           t.note.toLowerCase().includes(query) ||
           categoryById(t.categoryId).name.toLowerCase().includes(query),
       );
-  }, [allTimeSearch, allTimeSorted, monthTransactions, search, typeFilter, categoryById]);
+  }, [
+    allTimeSearch,
+    allTimeSorted,
+    monthTransactions,
+    search,
+    typeFilter,
+    categoryFilter,
+    minCents,
+    maxCents,
+    state.customCategories,
+    categoryById,
+  ]);
 
   // Budgets and goals live here, next to the money they describe
   const budgetRows = useMemo(() => {
@@ -385,6 +413,66 @@ export default function HomeScreen() {
                     onChange={setTypeFilter}
                   />
                 </View>
+
+                <Row style={{ justifyContent: 'space-between', marginBottom: spacing.m }}>
+                  <Pressable onPress={() => setFiltersOpen((open) => !open)} hitSlop={8}>
+                    <Text style={styles.filterToggle}>
+                      {filtersOpen ? 'Hide filters' : 'More filters'}
+                      {extraFilterCount > 0 ? ` (${extraFilterCount})` : ''}
+                    </Text>
+                  </Pressable>
+                  {extraFilterCount > 0 ? (
+                    <Pressable
+                      onPress={() => {
+                        setCategoryFilter(null);
+                        setMinAmount('');
+                        setMaxAmount('');
+                      }}
+                      hitSlop={8}
+                    >
+                      <Text style={styles.filterClear}>Clear</Text>
+                    </Pressable>
+                  ) : null}
+                </Row>
+
+                {filtersOpen ? (
+                  <Card>
+                    <Label>Category</Label>
+                    <View style={styles.chipsWrap}>
+                      <Chip
+                        label="Any"
+                        selected={categoryFilter === null}
+                        onPress={() => setCategoryFilter(null)}
+                      />
+                      {topLevelCategories(state.customCategories).map((c) => (
+                        <Chip
+                          key={c.id}
+                          label={c.name}
+                          selected={categoryFilter === c.id}
+                          onPress={() => setCategoryFilter(c.id)}
+                          color={c.color}
+                        />
+                      ))}
+                    </View>
+                    <Label>Amount between</Label>
+                    <Row>
+                      <Input
+                        style={{ flex: 1, marginRight: spacing.s }}
+                        value={minAmount}
+                        onChangeText={setMinAmount}
+                        placeholder="min"
+                        keyboardType="decimal-pad"
+                      />
+                      <Input
+                        style={{ flex: 1 }}
+                        value={maxAmount}
+                        onChangeText={setMaxAmount}
+                        placeholder="max"
+                        keyboardType="decimal-pad"
+                      />
+                    </Row>
+                  </Card>
+                ) : null}
                 {allTimeSearch ? (
                   <Text style={styles.resultCount}>
                     {visibleTransactions.length}{' '}
@@ -400,10 +488,10 @@ export default function HomeScreen() {
             message={
               state.people.length === 0
                 ? 'Add a person in the Settings tab, then add your first income or expense.'
-                : searching
+                : searching || extraFilterCount > 0
                   ? allTimeSearch
-                    ? 'Nothing matches your search in any month.'
-                    : 'No matches this month — try “All time”.'
+                    ? 'Nothing matches these filters in any month.'
+                    : 'No matches this month — try “All time” or clear a filter.'
                   : 'No entries this month yet. Tap + to add an income or expense.'
             }
           />
@@ -510,6 +598,9 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: font.medium,
       fontWeight: '700',
     },
+    filterToggle: { fontSize: font.body, fontWeight: '600', color: colors.primary },
+    filterClear: { fontSize: font.body, fontWeight: '600', color: colors.expense },
+    chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.s },
     meterRow: { marginBottom: spacing.m },
     meterName: { flex: 1, fontSize: font.body, fontWeight: '600', color: colors.text },
     meterValue: { fontSize: font.body, fontWeight: '700', color: colors.text },

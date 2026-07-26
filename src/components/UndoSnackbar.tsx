@@ -8,21 +8,21 @@ const DISMISS_AFTER_MS = 5000;
 
 /** "Entry deleted — UNDO" bar shown briefly after deleting a transaction */
 export function UndoSnackbar() {
-  const { undoableTransaction, undoRemoveTransaction, dismissUndo } = useApp();
+  const { undoAction, undo, dismissUndo } = useApp();
   const styles = useThemedStyles(makeStyles);
 
   useEffect(() => {
-    if (!undoableTransaction) return;
+    if (!undoAction) return;
     const timer = setTimeout(dismissUndo, DISMISS_AFTER_MS);
     return () => clearTimeout(timer);
-  }, [undoableTransaction, dismissUndo]);
+  }, [undoAction, dismissUndo]);
 
-  if (!undoableTransaction) return null;
+  if (!undoAction) return null;
 
   return (
-    <Pressable style={styles.bar} onPress={undoRemoveTransaction}>
+    <Pressable style={styles.bar} onPress={undo}>
       <Text style={styles.text} numberOfLines={1}>
-        Deleted “{undoableTransaction.note || 'entry'}”
+        {undoAction.label}
       </Text>
       <Text style={styles.action}>UNDO</Text>
     </Pressable>

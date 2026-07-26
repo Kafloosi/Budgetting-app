@@ -34,6 +34,50 @@ export async function pickReceiptPhoto(fromCamera: boolean): Promise<string | nu
   return dest;
 }
 
+/** Every referenced receipt as { filename: base64 }, for inclusion in a backup. */
+export async function readReceiptPayload(
+  transactions: Transaction[],
+): Promise<Record<string, string>> {
+  const payload: Record<string, string> = {};
+  for (const t of transactions) {
+    if (!t.photoUri) continue;
+    const name = t.photoUri.split('/').pop();
+    if (!name || payload[name]) continue;
+    try {
+      payload[name] = await FileSystem.readAsStringAsync(t.photoUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+    } catch {
+      // Missing file — the entry keeps its reference, the photo is just gone.
+    }
+  }
+  return payload;
+}
+
+/**
+ * Write photos from a backup back into app storage and return a map from the
+ * original URI to the restored one, so transactions can be re-pointed.
+ */
+export async function restoreReceiptPayload(
+  payload: Record<string, string>,
+): Promise<Record<string, string>> {
+  const dir = RECEIPTS_DIR();
+  const restored: Record<string, string> = {};
+  try {
+    await FileSystem.makeDirectoryAsync(dir, { intermediates: true }).catch(() => {});
+    for (const [name, base64] of Object.entries(payload)) {
+      const dest = `${dir}${name}`;
+      await FileSystem.writeAsStringAsync(dest, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      restored[name] = dest;
+    }
+  } catch {
+    // Best-effort: entries without a restored photo simply show none.
+  }
+  return restored;
+}
+
 /** Delete every stored receipt file that no transaction references anymore. */
 export async function reconcileReceipts(transactions: Transaction[]): Promise<void> {
   try {
