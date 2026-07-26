@@ -19,7 +19,9 @@ import {
   formatMonth,
   monthKey,
 } from '../utils/money';
-import { accountBalances, monthTotals, expenseCentsByCategory } from '../utils/aggregate';
+import { accountBalances, monthTotals } from '../utils/aggregate';
+import { effectiveBudgets } from '../utils/budgets';
+import { knownTags } from '../utils/tags';
 import { goalProgress } from '../utils/goals';
 import { topLevelCategories } from '../categories';
 import { NEAR_THRESHOLD } from '../utils/alerts';
@@ -62,6 +64,7 @@ export default function HomeScreen() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [minAmount, setMinAmount] = useState('');
   const [maxAmount, setMaxAmount] = useState('');
   const [editing, setEditing] = useState<Transaction | null>(null);
@@ -104,19 +107,21 @@ export default function HomeScreen() {
   const minCents = parseAmountToCents(minAmount);
   const maxCents = parseAmountToCents(maxAmount);
   const extraFilterCount =
-    (categoryFilter ? 1 : 0) + (minCents ? 1 : 0) + (maxCents ? 1 : 0);
+    (categoryFilter ? 1 : 0) + (tagFilter ? 1 : 0) + (minCents ? 1 : 0) + (maxCents ? 1 : 0);
 
   const visibleTransactions = useMemo(() => {
     const query = search.trim().toLowerCase();
     return (allTimeSearch ? allTimeSorted : monthTransactions).filter((t) => {
       if (typeFilter !== 'all' && t.type !== typeFilter) return false;
       if (categoryFilter && rootOf(t.categoryId) !== categoryFilter) return false;
+      if (tagFilter && !t.tags?.includes(tagFilter)) return false;
       if (minCents && t.amountCents < minCents) return false;
       if (maxCents && t.amountCents > maxCents) return false;
       if (!query) return true;
       return (
         t.note.toLowerCase().includes(query) ||
-        categoryById(t.categoryId).name.toLowerCase().includes(query)
+        categoryById(t.categoryId).name.toLowerCase().includes(query) ||
+        (t.tags ?? []).some((tag) => tag.includes(query))
       );
     });
   }, [
@@ -126,11 +131,16 @@ export default function HomeScreen() {
     search,
     typeFilter,
     categoryFilter,
+    tagFilter,
     minCents,
     maxCents,
     rootOf,
     categoryById,
   ]);
+
+  // Suggested from everything, not just this month, so a tag stays reachable
+  // after the project it belongs to has moved into the past.
+  const tagOptions = useMemo(() => knownTags(state.transactions, 12), [state.transactions]);
 
   const balances = useMemo(
     () =>
@@ -140,23 +150,35 @@ export default function HomeScreen() {
     [state.accounts, state.transactions, state.accountTransfers],
   );
 
-  // Budgets and goals live here, next to the money they describe
-  const budgetRows = useMemo(() => {
-    if (Object.keys(state.budgets).length === 0) return [];
-    const spentByCategory = expenseCentsByCategory(
-      state.transactions,
-      state.customCategories,
-      'month',
-      month,
-    );
-    return Object.entries(state.budgets)
-      .map(([categoryId, limitCents]) => ({
-        category: categoryById(categoryId),
-        limitCents,
-        spent: spentByCategory.get(categoryId) ?? 0,
-      }))
-      .sort((a, b) => b.spent / b.limitCents - a.spent / a.limitCents);
-  }, [state.transactions, state.customCategories, state.budgets, month, categoryById]);
+  // Budgets and goals live here, next to the money they describe. Keyed on
+  // the four inputs that actually move a budget — depending on the whole
+  // state object would re-scan a year of history on every theme toggle.
+  const { transactions, customCategories, budgets } = state;
+  const rolloverFrom = state.settings.budgetRolloverFrom;
+  const budgetRows = useMemo(
+    () =>
+      [
+        ...effectiveBudgets(
+          { transactions, customCategories, budgets, settings: { budgetRolloverFrom: rolloverFrom } },
+          month,
+        ),
+      ]
+        .map(([categoryId, budget]) => ({
+          category: categoryById(categoryId),
+          ...budget,
+          // Fullest first. A zero limit — an envelope emptied by carry-over —
+          // can't be divided by, and belongs at the top once anything is
+          // spent against it.
+          fullness:
+            budget.limitCents === 0
+              ? budget.spentCents > 0
+                ? Number.MAX_SAFE_INTEGER
+                : 0
+              : budget.spentCents / budget.limitCents,
+        }))
+        .sort((a, b) => b.fullness - a.fullness),
+    [transactions, customCategories, budgets, rolloverFrom, month, categoryById],
+  );
 
   const confirmFund = () => {
     if (!fundingGoal) return;
@@ -211,6 +233,7 @@ export default function HomeScreen() {
               <Text style={styles.txMeta} numberOfLines={1}>
                 {formatDate(item.date, allTimeSearch)}
                 {!isIncome ? ` · ${category.name}` : ''}
+                {item.tags?.length ? ` · ${item.tags.join(' · ')}` : ''}
                 {item.recurringId ? ' · repeats' : ''}
                 {item.photoUri ? ' · receipt' : ''}
                 {item.type === 'expense' && multiPerson
@@ -329,9 +352,9 @@ export default function HomeScreen() {
             {budgetRows.length > 0 ? (
               <Card>
                 <Label>Budgets · {formatMonth(month)}</Label>
-                {budgetRows.map(({ category, limitCents, spent }) => {
-                  const ratio = spent / limitCents;
-                  const over = ratio > 1;
+                {budgetRows.map(({ category, limitCents, spentCents, carryCents }) => {
+                  const ratio = limitCents > 0 ? spentCents / limitCents : 1;
+                  const over = spentCents > limitCents;
                   return (
                     <View key={category.id} style={styles.meterRow}>
                       <Row style={{ justifyContent: 'space-between' }}>
@@ -344,7 +367,7 @@ export default function HomeScreen() {
                         <Text
                           style={[styles.meterValue, over ? { color: colors.expense } : null]}
                         >
-                          {formatCents(spent)} / {formatCents(limitCents)}
+                          {formatCents(spentCents)} / {formatCents(limitCents)}
                         </Text>
                       </Row>
                       <View style={styles.track}>
@@ -362,6 +385,13 @@ export default function HomeScreen() {
                           ]}
                         />
                       </View>
+                      {carryCents !== 0 ? (
+                        <Text style={styles.carryNote}>
+                          {carryCents > 0
+                            ? `+${formatCents(carryCents)} carried over`
+                            : `${formatCents(carryCents)} carried over from overspending`}
+                        </Text>
+                      ) : null}
                     </View>
                   );
                 })}
@@ -455,6 +485,7 @@ export default function HomeScreen() {
                     <Pressable
                       onPress={() => {
                         setCategoryFilter(null);
+                        setTagFilter(null);
                         setMinAmount('');
                         setMaxAmount('');
                       }}
@@ -484,6 +515,26 @@ export default function HomeScreen() {
                         />
                       ))}
                     </View>
+                    {tagOptions.length > 0 ? (
+                      <>
+                        <Label>Tag</Label>
+                        <View style={styles.chipsWrap}>
+                          <Chip
+                            label="Any"
+                            selected={tagFilter === null}
+                            onPress={() => setTagFilter(null)}
+                          />
+                          {tagOptions.map((tag) => (
+                            <Chip
+                              key={tag}
+                              label={tag}
+                              selected={tagFilter === tag}
+                              onPress={() => setTagFilter(tag)}
+                            />
+                          ))}
+                        </View>
+                      </>
+                    ) : null}
                     <Label>Amount between</Label>
                     <Row>
                       <Input
@@ -643,6 +694,11 @@ const makeStyles = (colors: ThemeColors) =>
       overflow: 'hidden',
     },
     fill: { height: '100%', borderRadius: scale(4) },
+    carryNote: {
+      marginTop: spacing.xs,
+      fontSize: font.small,
+      color: colors.textSecondary,
+    },
     fundLink: {
       marginTop: spacing.xs,
       fontSize: font.small,

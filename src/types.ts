@@ -61,6 +61,29 @@ export interface Transaction {
   photoUri?: string;
   /** Which account the money came from or landed in */
   accountId?: string;
+  /**
+   * Free-form labels, stored lowercased. Categories answer "what kind of
+   * spending"; tags answer "which project" — a holiday, a renovation — and
+   * cut across categories.
+   */
+  tags?: string[];
+}
+
+/**
+ * A saved entry shape that can be re-added in one tap. Deliberately holds no
+ * date: a template is the shape of a recurring purchase, not an occurrence.
+ */
+export interface EntryTemplate {
+  id: string;
+  name: string;
+  personId: string;
+  type: TransactionType;
+  amountCents: number;
+  note: string;
+  shared: boolean;
+  categoryId?: string;
+  accountId?: string;
+  tags?: string[];
 }
 
 /** A repeating income or expense (rent, salary, subscription, …) */
@@ -72,6 +95,8 @@ export interface RecurringRule {
   note: string;
   shared: boolean;
   categoryId?: string;
+  /** Carried onto every entry the rule generates */
+  tags?: string[];
   frequency: IncomeFrequency;
   /** Date of the first occurrence (yyyy-mm-dd) */
   anchorDate: string;
@@ -147,6 +172,19 @@ export interface AppSettings {
   settleReminder: boolean;
   /** Sunday summary of the week's spending */
   weeklyDigest: boolean;
+  /**
+   * Month (yyyy-mm) from which unspent budget carries into the next month.
+   * A month rather than a flag: carry-over may only count months the user
+   * actually opted into, otherwise switching it on would back-date a
+   * windfall from months they never budgeted.
+   */
+  budgetRolloverFrom?: string;
+  /**
+   * App version whose release notes have been shown. Absent on installs
+   * predating the what's-new screen, which is treated as "show the current
+   * release", not "show everything ever".
+   */
+  lastSeenVersion?: string;
   /** One-time Budget Pro purchase / unlock */
   premium: boolean;
 }
@@ -161,6 +199,7 @@ export interface AppState {
   transactions: Transaction[];
   settlements: SettlementRecord[];
   recurring: RecurringRule[];
+  templates: EntryTemplate[];
   customCategories: Category[];
   /** Monthly spending limit in cents per category id */
   budgets: Record<string, number>;

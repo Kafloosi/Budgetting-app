@@ -12,6 +12,7 @@ import {
   AccountKind,
   AccountTransfer,
   AppState,
+  EntryTemplate,
   Goal,
   IncomeFrequency,
   Person,
@@ -26,13 +27,14 @@ import {
   CategoryIndex,
   FREE_CUSTOM_CATEGORY_LIMIT,
 } from '../categories';
-import { makeId, setActiveCurrency } from '../utils/money';
+import { currentMonthKey, makeId, setActiveCurrency } from '../utils/money';
 import { catchUp } from '../utils/catchup';
 import { dueBudgetAlerts, pruneAlertLog, sendBudgetNotifications } from '../utils/alerts';
 import { reconcileReceipts } from '../utils/receipts';
 import { syncSettleReminder, syncWeeklyDigest } from '../utils/reminders';
 import { weekDigest, weekDigestMessage } from '../utils/digest';
 import { isUnlocked, PremiumFeature } from '../utils/premium';
+import { APP_VERSION } from '../version';
 import { refreshWidget } from '../utils/widget';
 import {
   darkColors,
@@ -59,6 +61,8 @@ interface AppContextValue {
   removeTransaction: (id: string) => void;
   addRecurring: (rule: Omit<RecurringRule, 'id' | 'lastAppliedDate'>) => void;
   removeRecurring: (id: string, deleteTransactions: boolean) => void;
+  addTemplate: (template: Omit<EntryTemplate, 'id'>) => void;
+  removeTemplate: (id: string) => void;
   addCategory: (name: string, parentId?: string) => boolean;
   removeCategory: (id: string) => void;
   setBudget: (categoryId: string, limitCents: number | null) => void;
@@ -74,8 +78,11 @@ interface AppContextValue {
   setBudgetAlerts: (enabled: boolean) => void;
   setSettleReminder: (enabled: boolean) => void;
   setWeeklyDigest: (enabled: boolean) => void;
+  setBudgetRollover: (enabled: boolean) => void;
   setPremium: (unlocked: boolean) => void;
   completeOnboarding: () => void;
+  /** Release notes for this version have been read */
+  markVersionSeen: () => void;
   /** Replace the whole state (used by backup import) */
   replaceState: (next: AppState) => void;
   /** Erase every stored trace of the user's data */
@@ -185,6 +192,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     state.budgets,
     state.customCategories,
     state.settings.budgetAlerts,
+    state.settings.budgetRolloverFrom,
   ]);
 
   // Keep the money formatter in sync with the chosen currency
@@ -349,6 +357,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }));
     },
     [],
+  );
+
+  const addTemplate = useCallback((template: Omit<EntryTemplate, 'id'>) => {
+    setState((s) => {
+      // Re-saving the same entry shape replaces the old template rather than
+      // stacking near-identical chips the user then has to tell apart.
+      const kept = s.templates.filter(
+        (t) => t.name.toLowerCase() !== template.name.toLowerCase(),
+      );
+      return { ...s, templates: [...kept, { ...template, id: makeId() }] };
+    });
+  }, []);
+
+  const removeTemplate = useCallback(
+    (id: string) => {
+      const template = stateRef.current.templates.find((t) => t.id === id);
+      if (!template) return;
+      deleteWithUndo(
+        `Removed ${template.name}`,
+        (s) => ({ ...s, templates: s.templates.filter((t) => t.id !== id) }),
+        (s) => ({ ...s, templates: [...s.templates, template] }),
+      );
+    },
+    [deleteWithUndo],
   );
 
   const addAccount = useCallback(
@@ -600,12 +632,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setState((s) => ({ ...s, settings: { ...s.settings, weeklyDigest: enabled } }));
   }, []);
 
+  // Stamped with the current month so carry-over only ever counts months the
+  // user opted into; switching it off forgets the start month entirely.
+  const setBudgetRollover = useCallback((enabled: boolean) => {
+    setState((s) => ({
+      ...s,
+      settings: {
+        ...s.settings,
+        budgetRolloverFrom: enabled ? currentMonthKey() : undefined,
+      },
+    }));
+  }, []);
+
   const setPremium = useCallback((unlocked: boolean) => {
     setState((s) => ({ ...s, settings: { ...s.settings, premium: unlocked } }));
   }, []);
 
+  // Stamping the version here is what stops a fresh install from being met
+  // with release notes for the build it just arrived on.
   const completeOnboarding = useCallback(() => {
-    setState((s) => ({ ...s, settings: { ...s.settings, onboarded: true } }));
+    setState((s) => ({
+      ...s,
+      settings: { ...s.settings, onboarded: true, lastSeenVersion: APP_VERSION },
+    }));
+  }, []);
+
+  const markVersionSeen = useCallback(() => {
+    setState((s) => ({ ...s, settings: { ...s.settings, lastSeenVersion: APP_VERSION } }));
   }, []);
 
   const eraseAllData = useCallback(async () => {
@@ -633,6 +686,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         addRecurring,
         removeRecurring,
         updateRecurring,
+        addTemplate,
+        removeTemplate,
         addAccount,
         removeAccount,
         addAccountTransfer,
@@ -652,8 +707,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setBudgetAlerts,
         setSettleReminder,
         setWeeklyDigest,
+        setBudgetRollover,
         setPremium,
         completeOnboarding,
+        markVersionSeen,
         replaceState,
         eraseAllData,
         undoAction,

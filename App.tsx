@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AppState as RNAppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -17,13 +17,16 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import { LockScreen } from './src/components/LockScreen';
 import { UndoSnackbar } from './src/components/UndoSnackbar';
+import { WhatsNew } from './src/components/WhatsNew';
 import { useThemedStyles } from './src/components/ui';
+import { notesSince } from './src/changelog';
 import { font, scale, spacing, ThemeColors } from './src/theme';
+import { APP_VERSION } from './src/version';
 
 type Tab = 'home' | 'stats' | 'add' | 'split' | 'history' | 'settings';
 
 function Root() {
-  const { state, loaded } = useApp();
+  const { state, loaded, markVersionSeen } = useApp();
   const { colors, isDark } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [tab, setTab] = useState<Tab>('home');
@@ -64,6 +67,15 @@ function Root() {
   // The split feature only exists when there is more than one person
   const showSplit = state.people.length > 1;
   const activeTab = tab === 'split' && !showSplit ? 'home' : tab;
+
+  // Release notes wait until the user is actually in the app — behind the
+  // lock screen and past onboarding — so the first thing they see is never
+  // a changelog for a version they have not used yet.
+  const lastSeenVersion = state.settings.lastSeenVersion;
+  const releaseNotes = useMemo(
+    () => (lastSeenVersion === APP_VERSION ? [] : notesSince(lastSeenVersion)),
+    [lastSeenVersion],
+  );
 
   if (!loaded) {
     return <View style={styles.app} />;
@@ -122,6 +134,10 @@ function Root() {
       ) : null}
 
       <UndoSnackbar />
+
+      {releaseNotes.length > 0 ? (
+        <WhatsNew notes={releaseNotes} onDismiss={markVersionSeen} />
+      ) : null}
 
       <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, spacing.s) }]}>
         {tabs.map((t) => {

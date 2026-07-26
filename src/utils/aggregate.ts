@@ -31,24 +31,42 @@ export function monthTotals(transactions: Transaction[], month: string): PeriodT
 }
 
 /**
- * Expense totals per top-level category for one period. Subcategory spending
- * rolls up to its parent, and unknown or missing categories fold into
- * "Other" — so every report groups the same way.
+ * Expense totals per top-level category, for several periods in one pass.
+ * Subcategory spending rolls up to its parent, and unknown or missing
+ * categories fold into "Other" — so every report groups the same way.
+ *
+ * Anything needing more than one period (budget carry-over, trends) goes
+ * through this rather than calling the single-period version in a loop,
+ * which would re-scan the whole history once per period.
  */
+export function expenseCentsByCategoryPerPeriod(
+  transactions: Transaction[],
+  customCategories: Category[],
+  periodType: NavPeriodType,
+  periods: Iterable<string>,
+): Map<string, Map<string, number>> {
+  const { rootOf } = categoryIndex(customCategories);
+  const byPeriod = new Map([...periods].map((p) => [p, new Map<string, number>()]));
+  for (const t of transactions) {
+    if (t.type !== 'expense') continue;
+    const totals = byPeriod.get(periodOfDate(periodType, t.date));
+    if (!totals) continue;
+    const id = rootOf(t.categoryId);
+    totals.set(id, (totals.get(id) ?? 0) + t.amountCents);
+  }
+  return byPeriod;
+}
+
+/** The same totals for a single period */
 export function expenseCentsByCategory(
   transactions: Transaction[],
   customCategories: Category[],
   periodType: NavPeriodType,
   period: string,
 ): Map<string, number> {
-  const { rootOf } = categoryIndex(customCategories);
-  const totals = new Map<string, number>();
-  for (const t of transactions) {
-    if (t.type !== 'expense' || periodOfDate(periodType, t.date) !== period) continue;
-    const id = rootOf(t.categoryId);
-    totals.set(id, (totals.get(id) ?? 0) + t.amountCents);
-  }
-  return totals;
+  return expenseCentsByCategoryPerPeriod(transactions, customCategories, periodType, [
+    period,
+  ]).get(period)!;
 }
 
 /** Income and expense totals per person for one period */

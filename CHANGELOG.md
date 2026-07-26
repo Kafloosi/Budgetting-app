@@ -1,9 +1,17 @@
 # Changelog
 
-Versioning follows the ladder in AGENTS.md: `+0.001` for bug fixes, `+0.01`
-for a one- or two-feature drop, `+0.1` for several features moving towards the
-1.0 release. Versions below are reconstructed from the commit history up to
-the point the scheme was adopted.
+Versioning follows the ladder in AGENTS.md: `+0.0001` for bug fixes, `+0.001`
+for a one- or two-feature drop, `+0.01` for several features moving towards
+the 1.0 release. Versions up to 0.813 are reconstructed from the commit
+history, and were set on the earlier ten-times-coarser ladder.
+
+## 0.823
+
+Quick entry templates, tags on entries, budget carry-over between months, a
+spending calendar with day drill-down on the Stats tab, and net worth tracked
+month by month (Budget Pro). Release notes now appear in the app on the first
+launch after an update. The increments on the version ladder each moved one
+decimal place right, leaving room to reach 1.0 without inflating drops.
 
 ## 0.813
 

@@ -70,6 +70,7 @@ export function applyRecurring(state: AppState, today = todayIso()): AppState {
         date,
         shared: rule.shared,
         categoryId: rule.categoryId,
+        tags: rule.tags,
         recurringId: rule.id,
       });
     }

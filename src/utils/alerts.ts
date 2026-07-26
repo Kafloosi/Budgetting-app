@@ -1,6 +1,6 @@
 import { AppState, BudgetAlertLog } from '../types';
 import { categoryById } from '../categories';
-import { expenseCentsByCategory } from './aggregate';
+import { effectiveBudgets } from './budgets';
 import { currentMonthKey, formatCents } from './money';
 import { scheduleNotification } from './notifications';
 
@@ -22,16 +22,15 @@ export interface DueBudgetAlert {
 export function dueBudgetAlerts(state: AppState, month = currentMonthKey()): DueBudgetAlert[] {
   if (!state.settings.budgetAlerts) return [];
 
-  const spentByCategory = expenseCentsByCategory(
-    state.transactions,
-    state.customCategories,
-    'month',
-    month,
-  );
+  // The rollover-aware limit, so an alert can never contradict the meter the
+  // user is looking at on the Home tab.
+  const budgets = effectiveBudgets(state, month);
 
   const due: DueBudgetAlert[] = [];
-  for (const [categoryId, limitCents] of Object.entries(state.budgets)) {
-    const spent = spentByCategory.get(categoryId) ?? 0;
+  for (const [categoryId, { limitCents, spentCents: spent }] of budgets) {
+    // Nothing spent is never worth a notification, and it keeps an envelope
+    // emptied by carry-over (limit 0) from reading as "almost at its limit".
+    if (spent === 0) continue;
     const level: 'near' | 'over' | null =
       spent > limitCents ? 'over' : spent >= limitCents * NEAR_THRESHOLD ? 'near' : null;
     if (!level) continue;

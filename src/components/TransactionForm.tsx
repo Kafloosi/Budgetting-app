@@ -30,10 +30,14 @@ import {
   subcategoriesOf,
   topLevelCategories,
 } from '../categories';
-import { Card, Chip, Label, PrimaryButton, SegmentedControl, useThemedStyles } from './ui';
+import { Card, Chip, Input, Label, PrimaryButton, SegmentedControl, useThemedStyles } from './ui';
+import { knownTags, normalizeTag } from '../utils/tags';
 import { IncomeFrequency, TransactionType } from '../types';
 
 type RepeatOption = 'none' | IncomeFrequency;
+
+/** Tag suggestions worth showing before the list becomes noise */
+const TAG_SUGGESTIONS = 8;
 
 export interface TransactionValues {
   type: TransactionType;
@@ -45,6 +49,7 @@ export interface TransactionValues {
   categoryId?: string;
   photoUri?: string;
   accountId?: string;
+  tags?: string[];
   repeat: RepeatOption;
 }
 
@@ -58,12 +63,15 @@ export function TransactionForm({
   showRepeat,
   submitLabel,
   onSubmit,
+  onSaveTemplate,
 }: {
   initial?: Partial<TransactionValues>;
   /** Show the repeat selector (only when creating, not when editing) */
   showRepeat: boolean;
   submitLabel?: string;
   onSubmit: (values: TransactionValues) => void;
+  /** When given, offers "Save as template" with the current values */
+  onSaveTemplate?: (values: TransactionValues) => void;
 }) {
   const { state } = useApp();
   const { colors } = useTheme();
@@ -90,6 +98,8 @@ export function TransactionForm({
   const [accountId, setAccountId] = useState<string | undefined>(
     initial ? initial.accountId : state.accounts[0]?.id,
   );
+  const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
+  const [tagDraft, setTagDraft] = useState('');
 
   const pickPhoto = async (fromCamera: boolean) => {
     try {
@@ -124,17 +134,41 @@ export function TransactionForm({
     [state.customCategories, selectedRootId],
   );
 
-  const submit = () => {
+  // Scanning history is keyed on history alone; picking a tag only filters
+  // the already-computed list rather than re-deriving it.
+  const knownTagList = useMemo(
+    () => knownTags(state.transactions, TAG_SUGGESTIONS),
+    [state.transactions],
+  );
+  const suggestions = knownTagList.filter((t) => !tags.includes(t));
+
+  const toggleTag = (tag: string) =>
+    setTags((current) =>
+      current.includes(tag) ? current.filter((t) => t !== tag) : [...current, tag],
+    );
+
+  const commitTagDraft = () => {
+    const tag = normalizeTag(tagDraft);
+    if (tag && !tags.includes(tag)) setTags([...tags, tag]);
+    setTagDraft('');
+  };
+
+  /** Current form values, or null with the reason already shown to the user */
+  const collect = (): TransactionValues | null => {
     const cents = parseAmountToCents(amount);
     if (!cents) {
       Alert.alert('Invalid amount', 'Enter an amount like 12,50');
-      return;
+      return null;
     }
     if (!personId) {
       Alert.alert('No person', 'Add a person in the Settings tab first.');
-      return;
+      return null;
     }
-    onSubmit({
+    // A tag typed but not yet confirmed still counts — losing it silently on
+    // save is the kind of thing that makes people distrust the field.
+    const pendingTag = normalizeTag(tagDraft);
+    const allTags = pendingTag && !tags.includes(pendingTag) ? [...tags, pendingTag] : tags;
+    return {
       type,
       amountCents: cents,
       note: note.trim(),
@@ -144,8 +178,19 @@ export function TransactionForm({
       categoryId: isExpense ? categoryId : undefined,
       photoUri,
       accountId: state.accounts.length > 0 ? accountId : undefined,
+      tags: allTags.length > 0 ? allTags : undefined,
       repeat,
-    });
+    };
+  };
+
+  const submit = () => {
+    const values = collect();
+    if (values) onSubmit(values);
+  };
+
+  const saveTemplate = () => {
+    const values = collect();
+    if (values) onSaveTemplate?.(values);
   };
 
   return (
@@ -248,6 +293,29 @@ export function TransactionForm({
         </Card>
       ) : null}
 
+      <Card>
+        <Label>Tags</Label>
+        <Input
+          value={tagDraft}
+          onChangeText={setTagDraft}
+          onSubmitEditing={commitTagDraft}
+          onBlur={commitTagDraft}
+          placeholder="e.g. spain trip"
+          autoCapitalize="none"
+          returnKeyType="done"
+        />
+        {tags.length > 0 || suggestions.length > 0 ? (
+          <View style={[styles.chipsWrap, { marginTop: spacing.m }]}>
+            {tags.map((tag) => (
+              <Chip key={tag} label={tag} selected onPress={() => toggleTag(tag)} />
+            ))}
+            {suggestions.map((tag) => (
+              <Chip key={tag} label={tag} selected={false} onPress={() => toggleTag(tag)} />
+            ))}
+          </View>
+        ) : null}
+      </Card>
+
       {state.accounts.length > 0 ? (
         <Card>
           <Label>{isExpense ? 'Paid from' : 'Received in'}</Label>
@@ -346,6 +414,12 @@ export function TransactionForm({
         disabled={state.people.length === 0}
         style={{ marginTop: spacing.s }}
       />
+
+      {onSaveTemplate && state.people.length > 0 ? (
+        <Pressable onPress={saveTemplate} style={styles.templateButton}>
+          <Text style={styles.templateLabel}>Save as template</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -407,6 +481,16 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: font.small,
       color: colors.textSecondary,
       marginTop: spacing.m,
+    },
+    templateButton: {
+      marginTop: spacing.m,
+      alignItems: 'center',
+      paddingVertical: spacing.s,
+    },
+    templateLabel: {
+      fontSize: font.body,
+      fontWeight: '600',
+      color: colors.primary,
     },
     photo: {
       width: '100%',

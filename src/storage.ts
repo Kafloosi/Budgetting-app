@@ -21,6 +21,7 @@ export const emptyState: AppState = {
   transactions: [],
   settlements: [],
   recurring: [],
+  templates: [],
   customCategories: [],
   budgets: {},
   goals: [],
@@ -61,6 +62,7 @@ function migrate(parsed: Partial<AppState>): AppState {
     transactions: parsed.transactions ?? [],
     settlements,
     recurring: parsed.recurring ?? [],
+    templates: parsed.templates ?? [],
     budgets: parsed.budgets ?? {},
     // Categories gained colors and subcategories; old emoji-based custom
     // ones keep working by taking a color from the shared palette.
@@ -79,6 +81,8 @@ function migrate(parsed: Partial<AppState>): AppState {
       budgetAlerts: parsed.settings?.budgetAlerts ?? false,
       settleReminder: parsed.settings?.settleReminder ?? false,
       weeklyDigest: parsed.settings?.weeklyDigest ?? false,
+      budgetRolloverFrom: parsed.settings?.budgetRolloverFrom,
+      lastSeenVersion: parsed.settings?.lastSeenVersion,
       premium: parsed.settings?.premium ?? false,
     },
   };
@@ -209,7 +213,7 @@ export async function parseBackup(
 export function transactionsToCsv(state: AppState): string {
   const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
   const personName = new Map(state.people.map((p) => [p.id, p.name]));
-  const lines = ['date,type,person,category,note,amount,shared'];
+  const lines = ['date,type,person,category,tags,note,amount,shared'];
   const sorted = [...state.transactions].sort((a, b) => a.date.localeCompare(b.date));
   for (const t of sorted) {
     const category =
@@ -222,6 +226,7 @@ export function transactionsToCsv(state: AppState): string {
         t.type,
         esc(personName.get(t.personId) ?? ''),
         esc(category),
+        esc((t.tags ?? []).join(' ')),
         esc(t.note),
         (t.amountCents / 100).toFixed(2),
         t.shared ? 'yes' : 'no',

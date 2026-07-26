@@ -1,16 +1,22 @@
 import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useApp, usePremium, useTheme } from '../context/AppContext';
+import { useApp, useCategories, usePeopleById, usePremium, useTheme } from '../context/AppContext';
 import { font, scale, spacing, ThemeColors } from '../theme';
 import {
   currentPeriodKey,
   formatCents,
+  formatDate,
   formatMonth,
   formatPeriod,
   monthKey,
   shiftMonth,
 } from '../utils/money';
 import { rankedCategorySpending, totalsByPerson } from '../utils/aggregate';
+import { effectiveBudgets } from '../utils/budgets';
+import { NetWorthPoint, netWorthSeries } from '../utils/networth';
+import { tagTotals } from '../utils/tags';
+import { SpendingCalendar } from '../components/SpendingCalendar';
+import { Transaction } from '../types';
 import { computeInsights } from '../utils/insights';
 import {
   CategoryForecast,
@@ -98,6 +104,106 @@ function ProLock({ what, styles }: { what: string; styles: ReturnType<typeof mak
   );
 }
 
+/** What was spent and earned on one day, listed under the calendar */
+function DayBreakdown({
+  date,
+  entries,
+  describe,
+  colors,
+  styles,
+}: {
+  date: string;
+  entries: Transaction[];
+  /** Label and dot color for an entry, resolved by the screen */
+  describe: (t: Transaction) => { label: string; color: string };
+  colors: ThemeColors;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  return (
+    <View style={styles.dayList}>
+      <Text style={styles.dayHeader}>{formatDate(date, true)}</Text>
+      {entries.length === 0 ? (
+        <Text style={styles.emptyText}>Nothing recorded on this day.</Text>
+      ) : (
+        entries.map((t) => {
+          const { label, color } = describe(t);
+          const income = t.type === 'income';
+          return (
+            <Row key={t.id} style={styles.dayRow}>
+              <View style={[styles.dot, { backgroundColor: color }]} />
+              <Text style={styles.catName} numberOfLines={1}>
+                {label}
+              </Text>
+              <Text
+                style={[
+                  styles.catAmount,
+                  { color: income ? colors.income : colors.expense },
+                ]}
+              >
+                {income ? '+' : '-'}
+                {formatCents(t.amountCents)}
+              </Text>
+            </Row>
+          );
+        })
+      )}
+    </View>
+  );
+}
+
+/** Total account balance per month, with the direction of travel called out */
+function NetWorthBody({
+  points,
+  colors,
+  styles,
+}: {
+  points: NetWorthPoint[];
+  colors: ThemeColors;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  if (points.length === 0) return null;
+  const latest = points[points.length - 1];
+  const changeCents = latest.cents - points[0].cents;
+  const up = changeCents >= 0;
+  // Bars are drawn from a zero baseline against the largest balance either
+  // side of it, so a month in the red reads as red rather than as small.
+  const scaleMax = Math.max(1, ...points.map((p) => Math.abs(p.cents)));
+  return (
+    <>
+      <Text
+        style={[
+          styles.netWorthValue,
+          { color: latest.cents >= 0 ? colors.text : colors.expense },
+        ]}
+      >
+        {formatCents(latest.cents)}
+      </Text>
+      <Text style={[styles.forecastLine, { color: up ? colors.income : colors.expense }]}>
+        {up ? 'Up' : 'Down'} {formatCents(Math.abs(changeCents))} since{' '}
+        {formatMonth(points[0].month)}
+      </Text>
+      <Row style={styles.chartRow}>
+        {points.map((p) => (
+          <View key={p.month} style={styles.chartCol}>
+            <View style={styles.barsArea}>
+              <View
+                style={[
+                  styles.bar,
+                  {
+                    backgroundColor: p.cents >= 0 ? colors.primary : colors.expense,
+                    height: Math.max(2, (Math.abs(p.cents) / scaleMax) * scale(100)),
+                  },
+                ]}
+              />
+            </View>
+            <Text style={styles.chartLabel}>{formatMonth(p.month).slice(0, 3)}</Text>
+          </View>
+        ))}
+      </Row>
+    </>
+  );
+}
+
 function ForecastBody({
   forecast,
   categoryForecasts,
@@ -179,12 +285,22 @@ export default function StatsScreen() {
   const { state } = useApp();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { byId: categoryById } = useCategories();
+  const personById = usePeopleById();
   const [view, setView] = useState<StatsView>('month');
   const [period, setPeriod] = useState(currentPeriodKey('month'));
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   const changeView = (v: StatsView) => {
     setView(v);
     setPeriod(currentPeriodKey(v));
+    setSelectedDay(null);
+  };
+
+  const changePeriod = (next: string) => {
+    setPeriod(next);
+    // A day of the old month has no meaning in the new one
+    setSelectedDay(null);
   };
 
   const trend = useMemo(() => {
@@ -245,19 +361,56 @@ export default function StatsScreen() {
         : [],
     [insightsPro, monthView, state.transactions, state.customCategories, period],
   );
+  // One rollover-aware budget computation feeds both forecasts, so they can
+  // never disagree with the meters on the Home tab.
+  const liveBudgets = useMemo(
+    () => (forecastPro && monthView ? effectiveBudgets(state, currentPeriodKey('month')) : null),
+    [forecastPro, monthView, state],
+  );
   const forecast = useMemo(
-    () =>
-      forecastPro && monthView
-        ? forecastCurrentMonth(state.transactions, state.budgets)
-        : null,
-    [forecastPro, monthView, state.transactions, state.budgets],
+    () => (liveBudgets ? forecastCurrentMonth(state.transactions, liveBudgets) : null),
+    [liveBudgets, state.transactions],
   );
   const categoryForecasts = useMemo(
+    () => (liveBudgets ? forecastCategories(state.customCategories, liveBudgets) : []),
+    [liveBudgets, state.customCategories],
+  );
+
+  // Deliberately its own window rather than the trend's: net worth answers
+  // "where am I now", so it always ends at the current month even when the
+  // charts above are showing an earlier period.
+  const netWorthPro = usePremium('netWorth');
+  const netWorth = useMemo(() => {
+    if (!netWorthPro) return [];
+    const months = Array.from({ length: TREND_MONTHS }, (_, i) =>
+      shiftMonth(currentPeriodKey('month'), i - (TREND_MONTHS - 1)),
+    );
+    return netWorthSeries(state.accounts, state.transactions, months);
+  }, [netWorthPro, state.accounts, state.transactions]);
+
+  const tags = useMemo(
+    () => tagTotals(state.transactions, view, period),
+    [state.transactions, view, period],
+  );
+
+  const multiPersonLabel = state.people.length > 1;
+  const describeEntry = (t: Transaction) => {
+    const category = categoryById(t.categoryId);
+    const person = multiPersonLabel ? personById.get(t.personId)?.name : undefined;
+    return {
+      label: `${t.note || category.name}${person ? ` · ${person}` : ''}`,
+      color: t.type === 'income' ? colors.income : category.color,
+    };
+  };
+
+  const dayEntries = useMemo(
     () =>
-      forecastPro && monthView
-        ? forecastCategories(state.transactions, state.customCategories, state.budgets)
+      selectedDay
+        ? state.transactions
+            .filter((t) => t.date === selectedDay)
+            .sort((a, b) => b.amountCents - a.amountCents)
         : [],
-    [forecastPro, monthView, state.transactions, state.customCategories, state.budgets],
+    [state.transactions, selectedDay],
   );
 
 
@@ -276,7 +429,7 @@ export default function StatsScreen() {
           onChange={changeView}
         />
       </View>
-      <PeriodNav periodType={view} period={period} onChange={setPeriod} />
+      <PeriodNav periodType={view} period={period} onChange={changePeriod} />
 
       {state.transactions.length === 0 && state.goals.length === 0 ? (
         <EmptyState
@@ -336,6 +489,40 @@ export default function StatsScreen() {
             </Row>
           </Card>
 
+          {view === 'month' ? (
+            <Card>
+              <Label>Spending calendar · {periodLabel}</Label>
+              <SpendingCalendar
+                transactions={state.transactions}
+                month={period}
+                selectedDate={selectedDay}
+                onSelectDate={setSelectedDay}
+              />
+              {selectedDay ? (
+                <DayBreakdown
+                  date={selectedDay}
+                  entries={dayEntries}
+                  describe={describeEntry}
+                  colors={colors}
+                  styles={styles}
+                />
+              ) : null}
+            </Card>
+          ) : null}
+
+          <Card>
+            <Label>Net worth · last {TREND_MONTHS} months</Label>
+            {!netWorthPro ? (
+              <ProLock what="Net worth tracking" styles={styles} />
+            ) : state.accounts.length === 0 ? (
+              <Text style={styles.emptyText}>
+                Add an account in the Settings tab to track what you're worth over time.
+              </Text>
+            ) : (
+              <NetWorthBody points={netWorth} colors={colors} styles={styles} />
+            )}
+          </Card>
+
           {view === 'month' && period === currentPeriodKey('month') ? (
             <Card>
               <Label>Forecast · rest of {periodLabel}</Label>
@@ -392,6 +579,28 @@ export default function StatsScreen() {
               })
             )}
           </Card>
+
+          {tags.length > 0 ? (
+            <Card>
+              <Label>By tag · {periodLabel}</Label>
+              {tags.map(({ tag, cents, count }) => (
+                <MeterRow
+                  key={tag}
+                  label={tag}
+                  right={formatCents(cents)}
+                  ratio={cents / tags[0].cents}
+                  barColor={colors.primary}
+                  below={`${count} ${count === 1 ? 'entry' : 'entries'}`}
+                  belowColor={colors.textSecondary}
+                  styles={styles}
+                />
+              ))}
+              <Text style={styles.emptyText}>
+                An entry counts towards every tag it carries, so these overlap
+                rather than adding up to the month.
+              </Text>
+            </Card>
+          ) : null}
 
           {multiPerson ? (
             <Card>
@@ -523,6 +732,27 @@ const makeStyles = (colors: ThemeColors) =>
     },
     catRow: {
       marginBottom: spacing.m,
+    },
+    netWorthValue: {
+      fontSize: font.xlarge,
+      fontWeight: '800',
+      color: colors.text,
+      marginTop: spacing.xs,
+    },
+    dayList: {
+      marginTop: spacing.m,
+      paddingTop: spacing.m,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+    },
+    dayHeader: {
+      fontSize: font.body,
+      fontWeight: '700',
+      color: colors.text,
+      marginBottom: spacing.s,
+    },
+    dayRow: {
+      marginBottom: spacing.s,
     },
     catName: {
       flex: 1,

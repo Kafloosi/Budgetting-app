@@ -16,11 +16,13 @@ export type PremiumFeature =
   | 'forecast'
   | 'widget'
   | 'goalAutos'
-  | 'categories';
+  | 'categories'
+  | 'netWorth';
 
 export const PREMIUM_FEATURES: Record<PremiumFeature, string> = {
   insights: 'Insights — monthly spending analysis',
   forecast: 'Forecast — where the month is heading',
+  netWorth: 'Net worth tracked month by month',
   widget: 'Home-screen widget with your balance',
   goalAutos: 'Automatic monthly goal contributions',
   categories: 'Unlimited custom categories',
@@ -61,8 +63,9 @@ export type RestoreOutcome = 'restored' | 'nothing-found' | 'error' | 'unavailab
  * change when real purchases land.
  *
  * Sideloaded builds have no billing client, so this reports 'unavailable'
- * and the UI points at the two paths that do work offline: re-entering the
- * unlock code, or importing a backup (backups carry the unlock).
+ * and the UI points at the one path that works offline: re-entering the
+ * unlock code. Backups deliberately do not carry the unlock — an exported
+ * file is editable, so honouring it would hand out Pro to anyone.
  */
 export async function restorePremium(): Promise<RestoreOutcome> {
   return 'unavailable';

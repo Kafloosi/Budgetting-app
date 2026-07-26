@@ -250,7 +250,7 @@ export default function SplitScreen() {
                 ))}
               </View>
             ) : (
-              <Text style={styles.settledText}>All settled — nobody owes anything 🎉</Text>
+              <Text style={styles.settledText}>All settled — nobody owes anything</Text>
             )}
           </>
         )}

@@ -1,5 +1,6 @@
 import { Category, Transaction } from '../types';
-import { expenseCentsByCategory, monthTotals } from './aggregate';
+import { monthTotals } from './aggregate';
+import { EffectiveBudget } from './budgets';
 import { categoryById } from '../categories';
 import { currentMonthKey, daysInMonth, elapsedDaysInMonth } from './money';
 
@@ -31,7 +32,7 @@ export interface Forecast {
  */
 export function forecastCurrentMonth(
   transactions: Transaction[],
-  budgets: Record<string, number>,
+  budgets: Map<string, EffectiveBudget>,
 ): Forecast {
   const month = currentMonthKey();
   const total = daysInMonth(month);
@@ -48,7 +49,7 @@ export function forecastCurrentMonth(
     dailyPaceCents,
     projectedCents: dailyPaceCents * total,
     incomeCents,
-    budgetTotalCents: Object.values(budgets).reduce((s, v) => s + v, 0),
+    budgetTotalCents: [...budgets.values()].reduce((s, b) => s + b.limitCents, 0),
     projectedOverspendCents: dailyPaceCents * total - incomeCents,
     safeDailyCents: Math.max(0, Math.round((incomeCents - expenseCents) / remainingDays)),
     hasEnoughData: elapsedDays >= MIN_DAYS_FOR_FORECAST && expenseCents > 0,
@@ -70,23 +71,15 @@ export interface CategoryForecast {
  * are included; worst offenders first.
  */
 export function forecastCategories(
-  transactions: Transaction[],
   customCategories: Category[],
-  budgets: Record<string, number>,
+  budgets: Map<string, EffectiveBudget>,
 ): CategoryForecast[] {
   const month = currentMonthKey();
   const total = daysInMonth(month);
   const elapsedDays = elapsedDaysInMonth(month);
-  const spentByCategory = expenseCentsByCategory(
-    transactions,
-    customCategories,
-    'month',
-    month,
-  );
 
-  return Object.entries(budgets)
-    .map(([categoryId, limitCents]) => {
-      const spentCents = spentByCategory.get(categoryId) ?? 0;
+  return [...budgets]
+    .map(([categoryId, { limitCents, spentCents }]) => {
       const projectedCents = Math.round((spentCents / elapsedDays) * total);
       return {
         category: categoryById(customCategories, categoryId),
@@ -96,5 +89,12 @@ export function forecastCategories(
         projectedOverCents: Math.max(0, projectedCents - limitCents),
       };
     })
-    .sort((a, b) => b.projectedCents / b.limitCents - a.projectedCents / a.limitCents);
+    // An emptied envelope (limit 0) can't be divided by, and is the worst
+    // offender there is once anything at all is projected against it.
+    .sort((a, b) => overshoot(b) - overshoot(a));
+}
+
+function overshoot({ projectedCents, limitCents }: CategoryForecast): number {
+  if (limitCents > 0) return projectedCents / limitCents;
+  return projectedCents > 0 ? Number.MAX_SAFE_INTEGER : 0;
 }

@@ -151,6 +151,7 @@ export default function SettingsScreen() {
     addCategory,
     removeCategory,
     setBudget,
+    setBudgetRollover,
     setAppLock,
     setBudgetAlerts,
     setSettleReminder,
@@ -158,6 +159,7 @@ export default function SettingsScreen() {
     setPremium,
     addGoal,
     removeGoal,
+    removeTemplate,
     replaceState,
     eraseAllData,
   } = useApp();
@@ -167,6 +169,7 @@ export default function SettingsScreen() {
   const topCategories = topLevelCategories(state.customCategories);
   const categoriesPro = usePremium('categories');
   const personById = usePeopleById();
+  const rolloverFrom = state.settings.budgetRolloverFrom;
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [accName, setAccName] = useState('');
@@ -277,7 +280,7 @@ export default function SettingsScreen() {
     if (validateUnlockCode(unlockCode)) {
       setPremium(true);
       setUnlockCode('');
-      Alert.alert('Budget Pro unlocked 🎉', 'All premium features are now available.');
+      Alert.alert('Budget Pro unlocked', 'All premium features are now available.');
     } else {
       Alert.alert('Invalid code', 'That unlock code is not valid.');
     }
@@ -321,7 +324,7 @@ export default function SettingsScreen() {
     switch (outcome) {
       case 'restored':
         setPremium(true);
-        Alert.alert('Purchase restored 🎉', 'Budget Pro is active again.');
+        Alert.alert('Purchase restored', 'Budget Pro is active again.');
         break;
       case 'nothing-found':
         Alert.alert('Nothing to restore', 'No previous Budget Pro purchase was found.');
@@ -529,7 +532,7 @@ export default function SettingsScreen() {
       <Card style={premium ? styles.proCardActive : styles.proCard}>
         <Row style={{ justifyContent: 'space-between', marginBottom: spacing.s }}>
           <Text style={styles.proTitle}>
-            {premium ? '⭐ Budget Pro' : 'Budget Pro'}
+            {premium ? 'Budget Pro · active' : 'Budget Pro'}
           </Text>
           {premium ? (
             <Text style={styles.proActive}>Unlocked</Text>
@@ -745,6 +748,37 @@ export default function SettingsScreen() {
         </>
       ) : null}
 
+      <Label>Quick templates</Label>
+      <Card>
+        {state.templates.length === 0 ? (
+          <Text style={styles.mutedBody}>
+            No templates yet. Fill in an entry on the Add tab and tap “Save as
+            template” to keep its shape — it then goes back in with one tap.
+          </Text>
+        ) : (
+          state.templates.map((template) => (
+            <Row key={template.id} style={styles.listRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowTitle} numberOfLines={1}>
+                  {template.name}
+                </Text>
+                <Text style={styles.mutedSmall}>
+                  {template.type === 'income' ? '+' : '-'}
+                  {formatCents(template.amountCents)} ·{' '}
+                  {personById.get(template.personId)?.name ?? '?'}
+                  {template.type === 'expense'
+                    ? ` · ${categoryById(template.categoryId).name}`
+                    : ''}
+                </Text>
+              </View>
+              <Pressable onPress={() => removeTemplate(template.id)} hitSlop={8}>
+                <Text style={styles.danger}>Remove</Text>
+              </Pressable>
+            </Row>
+          ))
+        )}
+      </Card>
+
       <Label>Recurring entries</Label>
       <Card>
         {state.recurring.length === 0 ? (
@@ -833,6 +867,22 @@ export default function SettingsScreen() {
             onCommit={(cents) => setBudget(c.id, cents)}
           />
         ))}
+        <Row style={styles.settingDivider}>
+          <View style={{ flex: 1, paddingRight: spacing.m }}>
+            <Text style={styles.rowTitle}>Carry over what's left</Text>
+            <Text style={styles.mutedSmall}>
+              {rolloverFrom
+                ? `Unspent budget moves to the next month, and overspending comes off it. Counting since ${formatMonth(rolloverFrom)}.`
+                : 'Unspent budget moves to the next month, and overspending comes off it. Counts from the month you switch it on.'}
+            </Text>
+          </View>
+          <Switch
+            value={!!rolloverFrom}
+            onValueChange={setBudgetRollover}
+            trackColor={{ true: colors.primary, false: colors.border }}
+            thumbColor={colors.white}
+          />
+        </Row>
       </Card>
 
       <Label>Savings goals</Label>
@@ -841,9 +891,10 @@ export default function SettingsScreen() {
           <Row key={goal.id} style={styles.listRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle} numberOfLines={1}>
-                {goalProgress(goal).done ? '🏆' : '🎯'} {goal.name}
+                {goal.name}
               </Text>
               <Text style={styles.mutedSmall}>
+                {goalProgress(goal).done ? 'Reached · ' : ''}
                 {formatCents(goal.savedCents)} of {formatCents(goal.targetCents)}
                 {goal.deadline ? ` · by ${formatMonth(goal.deadline)}` : ''}
                 {goal.monthlyAutoCents
@@ -903,7 +954,7 @@ export default function SettingsScreen() {
           />
         ) : (
           <Text style={[styles.mutedSmall, { marginBottom: spacing.m }]}>
-            🔒 Automatic monthly contributions are part of Budget Pro.
+            Automatic monthly contributions are part of Budget Pro.
           </Text>
         )}
         <PrimaryButton label="Add goal" onPress={submitGoal} />
