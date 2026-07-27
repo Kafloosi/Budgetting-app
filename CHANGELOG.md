@@ -5,6 +5,23 @@ for a one- or two-feature drop, `+0.01` for several features moving towards
 the 1.0 release. Versions up to 0.813 are reconstructed from the commit
 history, and were set on the earlier ten-times-coarser ladder.
 
+## 0.8562
+
+Budget and goal meters on the home-screen widget. The widget showed month
+totals only, so the question it exists to answer — "is there room in
+groceries?" — still needed the phone unlocked. It now carries the two fullest
+budget meters under the balance, falling back to goals when no budgets are
+set, since a goal is progress you check rather than a limit you might breach.
+
+`widgetMeters()` reads `effectiveBudgets` rather than recomputing, so the
+widget can never disagree with Home. The widget layer has no percentage
+widths, so the meter is a track and a fill at fixed dp, clamped 2-100% exactly
+as `Meter` does in the app.
+
+10 assertions: ordering by fullness, the two-meter cap, over-budget flagging,
+the goal fallback and its ratio, the mixed budget-plus-goal case, and the
+empty case.
+
 ## 0.8552
 
 Settle a single tag. `sharedExpensesForPeriod` and `computeSettlement` take an

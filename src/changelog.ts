@@ -12,6 +12,13 @@ export interface ReleaseNote {
 /** Newest first */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.8562',
+    highlights: [
+      'The home-screen widget now shows your fullest budget meters under the balance, so you can check whether there is room without unlocking the phone.',
+      'No budgets set? It shows your savings goals instead.',
+    ],
+  },
+  {
     version: '0.8552',
     highlights: [
       'Settle just one tag — square up the holiday on its own without settling the whole month.',
