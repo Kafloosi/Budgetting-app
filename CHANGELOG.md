@@ -5,6 +5,32 @@ for a one- or two-feature drop, `+0.01` for several features moving towards
 the 1.0 release. Versions up to 0.813 are reconstructed from the commit
 history, and were set on the earlier ten-times-coarser ladder.
 
+## 0.8331
+
+A new visual world, chosen with the `/impeccable` design skill and recorded in
+DESIGN.md: the Rietveld Schröder house, where sliding planes make one small
+room into many. The app does the same job with money — one set of it,
+partitioned per person or combined — so the house is the system rather than a
+decoration.
+
+What changed everywhere at once, through `src/theme.ts` and
+`src/components/ui.tsx`: cards became planes that run edge to edge and are
+divided by structural rules, so nothing floats; every corner radius went to
+zero and every shadow was removed, because this world separates with a drawn
+line and not with blur; the palette moved to neutral grounds with red, blue
+and yellow rationed to edges that carry meaning — blue in, red out, yellow
+near a limit; and every figure in the app is now set in tabular numerals so
+columns of digits line up down the screen.
+
+Category colour is now a 4px edge marker against the rule rather than a filled
+chip, section labels are lowercase instead of tracked uppercase, and Home's
+balance is set flush left at display scale with `in` and `out` beneath it in
+one ruled column.
+
+PRODUCT.md records the product truth this rests on. The four tabs and Home's
+centre position are unchanged, as are every feature, figure and behaviour —
+this drop changes how the app looks, not what it does.
+
 ## 0.8231
 
 Internal restructuring, no new features. The four pieces of UI that had been

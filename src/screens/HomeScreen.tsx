@@ -1,3 +1,27 @@
+/**
+ * DIRECTION CONTRACT — see DESIGN.md for the system this implements.
+ *
+ * THESIS: one set of money, partitioned. Home refuses the finance-app card
+ * stack: no floating containers, no rounded corners, no elevation. Planes butt
+ * against one another and a drawn rule does the separating.
+ *
+ * OWN-WORLD: the Rietveld Schröder house. Neutral planes of ground, black
+ * structural ink, and red/blue/yellow rationed to edges that carry meaning —
+ * blue in, red out, yellow near a limit. Category colour is a 4px edge marker
+ * against the rule, never a filled chip.
+ *
+ * STORY: the user opens Home mid-errand and reads one number — what is left —
+ * then the two flows that produced it, then where each budget stands.
+ *
+ * FIRST VIEWPORT: person selector, then the balance plane: lowercase label
+ * flush left, the balance in large tabular figures beneath it, and `in` / `out`
+ * as two hairline-ruled rows with the digits aligned to the right edge.
+ *
+ * FORM: Rietveld Sliding House, pinned by the user over the assigned roll
+ * (seed 11689070, which dealt candidate 5 of the grounded list, The Passbook).
+ * No staging was committed from the dealt set — composition follows the world's
+ * own plane grammar rather than an imported one.
+ */
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
@@ -31,6 +55,7 @@ import {
   Chip,
   Dot,
   EmptyState,
+  Figure,
   Input,
   Label,
   MeterRow,
@@ -298,32 +323,24 @@ export default function HomeScreen() {
             <Card style={styles.summaryCard}>
               <Text style={styles.summaryLabel}>
                 {activePersonId === COMBINED
-                  ? 'Combined balance'
+                  ? 'combined balance'
                   : `${personById.get(activePersonId)?.name ?? ''} balance`}
               </Text>
-              <Text
-                style={[
-                  styles.summaryNet,
-                  { color: netCents >= 0 ? colors.income : colors.expense },
-                ]}
+              <Figure
+                size="balance"
+                color={netCents >= 0 ? colors.income : colors.expense}
+                style={styles.summaryNet}
               >
                 {formatCents(netCents)}
-              </Text>
-              <Row style={{ marginTop: spacing.m }}>
-                <View style={styles.summaryHalf}>
-                  <Text style={styles.summarySubLabel}>Income</Text>
-                  <Text style={[styles.summaryValue, { color: colors.income }]}>
-                    +{formatCents(incomeCents)}
-                  </Text>
-                </View>
-                <View style={styles.summaryDivider} />
-                <View style={styles.summaryHalf}>
-                  <Text style={styles.summarySubLabel}>Expenses</Text>
-                  <Text style={[styles.summaryValue, { color: colors.expense }]}>
-                    -{formatCents(expenseCents)}
-                  </Text>
-                </View>
-              </Row>
+              </Figure>
+              <View style={styles.flowRow}>
+                <Text style={styles.flowLabel}>in</Text>
+                <Figure color={colors.income}>+{formatCents(incomeCents)}</Figure>
+              </View>
+              <View style={[styles.flowRow, styles.flowRowLast]}>
+                <Text style={styles.flowLabel}>out</Text>
+                <Figure color={colors.expense}>-{formatCents(expenseCents)}</Figure>
+              </View>
             </Card>
 
             {state.accounts.length > 0 ? (
@@ -623,36 +640,37 @@ const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     ...screenChrome(colors),
     listContent: screenChrome(colors).content,
+    // Flush to the plane edge, not centred: the balance is the thesis and the
+    // two flows sit beneath it in one ruled column with the digits aligned.
     summaryCard: {
-      alignItems: 'center',
-      paddingVertical: spacing.xl,
+      paddingTop: spacing.xl,
+      paddingBottom: spacing.s,
     },
     summaryLabel: {
-      fontSize: font.small,
+      fontSize: font.body,
       color: colors.textSecondary,
       fontWeight: '600',
-      textTransform: 'uppercase',
-      letterSpacing: 0.6,
     },
     summaryNet: {
-      fontSize: font.huge,
-      fontWeight: '800',
-      marginTop: spacing.s,
+      marginTop: spacing.xs,
+      marginBottom: spacing.l,
     },
-    summaryHalf: { flex: 1, alignItems: 'center' },
-    summaryDivider: {
-      width: StyleSheet.hairlineWidth,
-      backgroundColor: colors.border,
-      alignSelf: 'stretch',
+    flowRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: spacing.m,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
     },
-    summarySubLabel: {
-      fontSize: font.small,
+    flowRowLast: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    flowLabel: {
+      fontSize: font.body,
       color: colors.textSecondary,
-      marginBottom: spacing.xs,
-    },
-    summaryValue: {
-      fontSize: font.medium,
-      fontWeight: '700',
+      fontWeight: '600',
     },
     filterToggle: { fontSize: font.body, fontWeight: '600', color: colors.primary },
     filterClear: { fontSize: font.body, fontWeight: '600', color: colors.expense },

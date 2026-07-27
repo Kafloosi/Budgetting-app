@@ -13,7 +13,16 @@ import {
   ViewStyle,
 } from 'react-native';
 import { useApp, useTheme } from '../context/AppContext';
-import { darkColors, font, radius, scale, spacing, ThemeColors } from '../theme';
+import {
+  darkColors,
+  figures,
+  font,
+  radius,
+  rules,
+  scale,
+  spacing,
+  ThemeColors,
+} from '../theme';
 import {
   CURRENCIES,
   currentPeriodKey,
@@ -47,16 +56,25 @@ export function useThemedStyles<T>(factory: (colors: ThemeColors) => T): T {
   }, [colors, factory]);
 }
 
-/** Standard container/content styles shared by every screen */
+/**
+ * Standard container/content styles shared by every screen. Planes run to the
+ * screen edge and are separated by their own rules, so the scroll body carries
+ * no horizontal padding of its own.
+ */
 export const screenChrome = (colors: ThemeColors) => ({
   container: { flex: 1, backgroundColor: colors.background } as ViewStyle,
-  content: { padding: spacing.l, paddingBottom: scale(100) } as ViewStyle,
+  content: { paddingHorizontal: spacing.l, paddingBottom: scale(100) } as ViewStyle,
 });
 
 function useStyles(): ReturnType<typeof makeStyles> {
   return useThemedStyles(makeStyles);
 }
 
+/**
+ * A plane: ground that runs the full width and is closed by a structural rule
+ * beneath it. Planes butt against one another — they never float, never round
+ * their corners, and never nest.
+ */
 export function Card({
   children,
   style,
@@ -71,17 +89,40 @@ export function Card({
 export function ScreenTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   const styles = useStyles();
   return (
-    <View style={{ marginBottom: spacing.l }}>
+    <View style={styles.screenTitle}>
       <Text style={styles.title}>{title}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     </View>
   );
 }
 
-/** Small uppercase section label */
+/** Section label, set lowercase and flush to the rule it sits above */
 export function Label({ children }: { children: React.ReactNode }) {
   const styles = useStyles();
   return <Text style={styles.label}>{children}</Text>;
+}
+
+/**
+ * A figure. Money is always tabular so digits line up down the screen; this is
+ * the single most load-bearing type decision in the app.
+ */
+export function Figure({
+  children,
+  size = 'body',
+  color,
+  style,
+}: {
+  children: React.ReactNode;
+  size?: 'body' | 'medium' | 'large' | 'balance';
+  color?: string;
+  style?: TextStyle;
+}) {
+  const styles = useStyles();
+  return (
+    <Text style={[styles.figure, styles[size], color ? { color } : null, style]}>
+      {children}
+    </Text>
+  );
 }
 
 export function PrimaryButton({
@@ -408,32 +449,57 @@ const stylesStatic = StyleSheet.create({
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
+    // A plane: full-bleed ground closed by a structural rule beneath it.
     card: {
       backgroundColor: colors.card,
-      borderRadius: radius.l,
-      padding: spacing.l,
-      marginBottom: spacing.m,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
+      marginHorizontal: -spacing.l,
+      paddingHorizontal: spacing.l,
+      paddingVertical: spacing.l,
+      borderBottomWidth: rules.structure,
+      borderBottomColor: colors.rule,
+    },
+    screenTitle: {
+      backgroundColor: colors.card,
+      marginHorizontal: -spacing.l,
+      paddingHorizontal: spacing.l,
+      paddingTop: spacing.xl,
+      paddingBottom: spacing.l,
+      borderBottomWidth: rules.structure,
+      borderBottomColor: colors.rule,
     },
     title: {
       fontSize: font.xlarge,
       fontWeight: '700',
       color: colors.text,
+      letterSpacing: -0.5,
     },
     subtitle: {
       fontSize: font.body,
       color: colors.textSecondary,
       marginTop: spacing.xs,
     },
+    // Lowercase, flush to the rule. No tracked uppercase eyebrows.
     label: {
       fontSize: font.small,
       color: colors.textSecondary,
       fontWeight: '600',
-      textTransform: 'uppercase',
-      letterSpacing: 0.6,
+      marginTop: spacing.l,
       marginBottom: spacing.s,
     },
+    figure: {
+      ...figures,
+      color: colors.text,
+      fontWeight: '600',
+    },
+    body: { fontSize: font.body },
+    medium: { fontSize: font.medium },
+    large: { fontSize: font.large, fontWeight: '700' },
+    balance: {
+      fontSize: font.huge,
+      fontWeight: '700',
+      letterSpacing: -1.2,
+    },
+    // Primary action is an ink plane, not a rounded pill.
     button: {
       borderRadius: radius.m,
       paddingVertical: scale(14),
@@ -445,11 +511,12 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: font.medium,
       fontWeight: '700',
     },
+    // A chip is a bordered rectangle; selection fills it with the active edge.
     chip: {
-      paddingHorizontal: spacing.l,
+      paddingHorizontal: spacing.m,
       paddingVertical: scale(8),
-      borderRadius: radius.xl,
-      borderWidth: 1,
+      borderRadius: radius.s,
+      borderWidth: rules.hairline,
       marginRight: spacing.s,
       marginBottom: spacing.s,
       maxWidth: scale(160),
@@ -460,14 +527,12 @@ const makeStyles = (colors: ThemeColors) =>
     },
     segmentWrap: {
       flexDirection: 'row',
-      backgroundColor: colors.background,
-      borderRadius: radius.m,
-      padding: scale(3),
+      borderWidth: rules.hairline,
+      borderColor: colors.rule,
     },
     segment: {
       flex: 1,
-      paddingVertical: scale(9),
-      borderRadius: radius.s,
+      paddingVertical: scale(10),
       alignItems: 'center',
     },
     segmentLabel: {
@@ -475,14 +540,16 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: '600',
     },
     input: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: radius.m,
-      paddingHorizontal: spacing.m,
+      borderWidth: 0,
+      borderBottomWidth: rules.hairline,
+      borderBottomColor: colors.rule,
+      borderRadius: radius.s,
+      paddingHorizontal: 0,
       paddingVertical: scale(10),
-      fontSize: font.body,
+      fontSize: font.medium,
       color: colors.text,
-      backgroundColor: colors.background,
+      backgroundColor: 'transparent',
+      ...figures,
     },
     periodRow: {
       flexDirection: 'row',
@@ -493,15 +560,14 @@ const makeStyles = (colors: ThemeColors) =>
     periodArrow: {
       width: scale(40),
       height: scale(40),
-      borderRadius: radius.m,
-      backgroundColor: colors.card,
+      borderRadius: radius.s,
       alignItems: 'center',
       justifyContent: 'center',
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
+      borderWidth: rules.hairline,
+      borderColor: colors.rule,
     },
     periodArrowDisabled: {
-      opacity: 0.35,
+      opacity: 0.3,
     },
     periodArrowText: {
       fontSize: font.large,
@@ -520,25 +586,28 @@ const makeStyles = (colors: ThemeColors) =>
       paddingHorizontal: spacing.s,
     },
     empty: {
-      alignItems: 'center',
       paddingVertical: spacing.xxl,
-    },
-    emptyIcon: {
-      fontSize: font.huge,
-      marginBottom: spacing.m,
     },
     emptyText: {
       fontSize: font.body,
       color: colors.textSecondary,
-      textAlign: 'center',
-      paddingHorizontal: spacing.xl,
+    },
+    // Category colour is an edge marker against the rule, never a filled chip.
+    dot: {
+      width: scale(4),
+      height: scale(16),
+      marginRight: spacing.m,
     },
     track: {
-      height: scale(8),
-      borderRadius: scale(4),
+      height: scale(6),
       backgroundColor: colors.background,
-      marginTop: spacing.xs,
-      overflow: 'hidden',
+      marginTop: spacing.s,
+    },
+    fill: {
+      height: '100%',
+    },
+    meterRow: {
+      marginBottom: spacing.l,
     },
     meterName: {
       flex: 1,
@@ -551,12 +620,12 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: font.body,
       fontWeight: '700',
       color: colors.text,
+      ...figures,
     },
     belowText: {
-      marginTop: 2,
+      marginTop: spacing.xs,
       fontSize: font.small,
       color: colors.textSecondary,
-      fontWeight: '600',
     },
     viewer: {
       flex: 1,

@@ -12,6 +12,15 @@ export interface ReleaseNote {
 /** Newest first */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.8331',
+    highlights: [
+      'A completely new look. Panels now run edge to edge and are separated by clean lines instead of floating boxes with rounded corners and shadows.',
+      'Amounts are set in aligned figures, so columns of numbers line up and are far easier to scan.',
+      'Colour now means something: blue for money in, red for money out, yellow when you are close to a limit.',
+      'Nothing moved and nothing was removed — same tabs, same features, same numbers.',
+    ],
+  },
+  {
     version: '0.8231',
     highlights: [
       'Tidied up the app’s insides so future updates arrive faster and screens stay consistent with each other.',
