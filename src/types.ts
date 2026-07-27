@@ -175,6 +175,12 @@ export interface SettlementRecord {
   createdAt: string;
   /** ISO timestamp of when the transfers were actually paid */
   settledAt?: string;
+  /**
+   * Set when only one tag was settled rather than the whole period, so the
+   * history record says what it covered and a later full settlement of the
+   * same month is not mistaken for a duplicate.
+   */
+  tag?: string;
 }
 
 /** A savings goal with manual and optional automatic contributions */

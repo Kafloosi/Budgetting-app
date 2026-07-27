@@ -12,6 +12,13 @@ export interface ReleaseNote {
 /** Newest first */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.8552',
+    highlights: [
+      'Settle just one tag — square up the holiday on its own without settling the whole month.',
+      'History now shows which tag a settlement covered, so a project settlement is never mistaken for a duplicate.',
+    ],
+  },
+  {
     version: '0.8542',
     highlights: [
       'The trash now catches savings goals, quick templates and recurring entries too, not just entries — all recoverable for 30 days.',

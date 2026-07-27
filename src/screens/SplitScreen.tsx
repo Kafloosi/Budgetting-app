@@ -17,9 +17,14 @@ import {
   formatDate,
   formatPeriod,
 } from '../utils/money';
-import { computeSettlement, sharedExpensesForPeriod } from '../utils/split';
+import {
+  computeSettlement,
+  sharedExpensesForPeriod,
+  sharedTagsForPeriod,
+} from '../utils/split';
 import {
   Card,
+  Chip,
   Dot,
   Label,
   LedgerRow,
@@ -56,6 +61,7 @@ export default function SplitScreen() {
   const styles = useThemedStyles(makeStyles);
   const [periodType, setPeriodType] = useState<PeriodType>('month');
   const [period, setPeriod] = useState(currentPeriodKey('month'));
+  const [scopeTag, setScopeTag] = useState<string | undefined>();
   const twoPeople = state.people.length === 2;
   const [method, setMethod] = useState<SplitMethod>(
     twoPeople ? 'fifty-fifty' : 'equal-payments',
@@ -91,7 +97,19 @@ export default function SplitScreen() {
   const percentTotal = state.people.reduce((s, p) => s + percentages[p.id], 0);
   const percentagesValid = Math.abs(percentTotal - 100) < 0.01;
 
-  const expenses = sharedExpensesForPeriod(state.transactions, periodType, period);
+  const tagOptions = useMemo(
+    () => sharedTagsForPeriod(state.transactions, periodType, period),
+    [state.transactions, periodType, period],
+  );
+  // A tag that stops appearing in the period must not keep filtering silently.
+  const activeTag = scopeTag && tagOptions.includes(scopeTag) ? scopeTag : undefined;
+
+  const expenses = sharedExpensesForPeriod(
+    state.transactions,
+    periodType,
+    period,
+    activeTag,
+  );
   const settlement = useMemo(
     () =>
       computeSettlement(
@@ -101,8 +119,17 @@ export default function SplitScreen() {
         period,
         activeMethod,
         percentages,
+        activeTag,
       ),
-    [state.people, state.transactions, periodType, period, activeMethod, percentages],
+    [
+      state.people,
+      state.transactions,
+      periodType,
+      period,
+      activeMethod,
+      percentages,
+      activeTag,
+    ],
   );
 
   const noIncomes =
@@ -120,6 +147,7 @@ export default function SplitScreen() {
       totalSharedCents: settlement.totalSharedCents,
       results: settlement.results,
       transfers: settlement.transfers,
+      tag: activeTag,
     });
     Alert.alert('Saved', 'The calculation was added to your history.');
   };
@@ -140,6 +168,31 @@ export default function SplitScreen() {
       </View>
 
       <PeriodNav periodType={periodType} period={period} onChange={setPeriod} />
+
+      {tagOptions.length > 0 ? (
+        <Card>
+          <Label>Settle</Label>
+          <View style={styles.chipsWrap}>
+            <Chip
+              label="Everything"
+              selected={activeTag === undefined}
+              onPress={() => setScopeTag(undefined)}
+            />
+            {tagOptions.map((t) => (
+              <Chip
+                key={t}
+                label={t}
+                selected={activeTag === t}
+                onPress={() => setScopeTag(t)}
+              />
+            ))}
+          </View>
+          <Text style={styles.mutedNote}>
+            Settling one tag squares up just that project and leaves the rest of
+            the {periodType} untouched.
+          </Text>
+        </Card>
+      ) : null}
 
       <Label>How do you want to split?</Label>
       {methods.map((m) => {
@@ -205,7 +258,10 @@ export default function SplitScreen() {
       ) : null}
 
       <Card>
-        <Label>Result · {formatPeriod(periodType, period)}</Label>
+        <Label>
+          Result · {formatPeriod(periodType, period)}
+          {activeTag ? ` · ${activeTag}` : ''}
+        </Label>
         <Row style={styles.totalRow}>
           <Text style={styles.totalLabel}>Total shared expenses</Text>
           <Text style={styles.totalValue}>{formatCents(settlement.totalSharedCents)}</Text>
@@ -213,7 +269,8 @@ export default function SplitScreen() {
 
         {expenses.length === 0 ? (
           <Text style={styles.emptyText}>
-            No shared expenses in this {periodType}. Mark expenses as “shared”
+            No shared expenses{activeTag ? ` tagged ${activeTag}` : ''} in this{' '}
+          {periodType}. Mark expenses as “shared”
             when adding them.
           </Text>
         ) : (
@@ -251,7 +308,10 @@ export default function SplitScreen() {
 
       {expenses.length > 0 ? (
         <Card>
-          <Label>Shared expenses · {formatPeriod(periodType, period)}</Label>
+          <Label>
+            Shared expenses · {formatPeriod(periodType, period)}
+            {activeTag ? ` · ${activeTag}` : ''}
+          </Label>
           {expenses.map((expense) => (
             <Row key={expense.id} style={styles.expenseRow}>
               {expense.photoUri ? (
@@ -293,6 +353,15 @@ export default function SplitScreen() {
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     ...screenChrome(colors),
+    chipsWrap: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      marginBottom: spacing.s,
+    },
+    mutedNote: {
+      fontSize: font.small,
+      color: colors.textSecondary,
+    },
     methodCard: {
       flexDirection: 'row',
       alignItems: 'center',

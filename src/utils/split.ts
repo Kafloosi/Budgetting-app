@@ -8,18 +8,38 @@ import {
 } from '../types';
 import { monthlyIncomeCents, periodOfDate } from './money';
 
-/** All shared expenses that fall inside the given month or week */
+/**
+ * All shared expenses inside the given month or week, optionally narrowed to
+ * one tag. Settling a single tag lets a holiday or a renovation be squared up
+ * on its own without touching the rest of the period, which is how a one-off
+ * project is normally settled in practice.
+ */
 export function sharedExpensesForPeriod(
   transactions: Transaction[],
   periodType: PeriodType,
   period: string,
+  tag?: string,
 ): Transaction[] {
   return transactions.filter(
     (t) =>
       t.type === 'expense' &&
       t.shared &&
-      periodOfDate(periodType, t.date) === period,
+      periodOfDate(periodType, t.date) === period &&
+      (!tag || !!t.tags?.includes(tag)),
   );
+}
+
+/** Tags carried by the shared expenses of a period, for the scope picker */
+export function sharedTagsForPeriod(
+  transactions: Transaction[],
+  periodType: PeriodType,
+  period: string,
+): string[] {
+  const tags = new Set<string>();
+  for (const t of sharedExpensesForPeriod(transactions, periodType, period)) {
+    for (const tag of t.tags ?? []) tags.add(tag);
+  }
+  return [...tags].sort();
 }
 
 function paidByPerson(expenses: Transaction[], personId: string): number {
@@ -64,8 +84,10 @@ export function computeSettlement(
   period: string,
   method: SplitMethod,
   percentages?: Record<string, number>,
+  /** Settle only the expenses carrying this tag, rather than the whole period */
+  tag?: string,
 ): { totalSharedCents: number; results: PersonResult[]; transfers: Transfer[] } {
-  const expenses = sharedExpensesForPeriod(transactions, periodType, period);
+  const expenses = sharedExpensesForPeriod(transactions, periodType, period, tag);
   const totalSharedCents = expenses.reduce((sum, t) => sum + t.amountCents, 0);
 
   let weights: number[];

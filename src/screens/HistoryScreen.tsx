@@ -80,9 +80,18 @@ export default function HistoryScreen() {
           <Pressable onLongPress={() => confirmDelete(item)}>
             <Card>
               <Row style={{ justifyContent: 'space-between', marginBottom: spacing.s }}>
-                <View style={styles.methodBadge}>
-                  <Text style={styles.methodBadgeText}>{METHOD_LABEL[item.method]}</Text>
-                </View>
+                <Row style={{ flex: 1 }}>
+                  <View style={styles.methodBadge}>
+                    <Text style={styles.methodBadgeText}>{METHOD_LABEL[item.method]}</Text>
+                  </View>
+                  {/* Without this a tag settlement reads as a duplicate of the
+                      month it sits under. */}
+                  {item.tag ? (
+                    <Text style={styles.scopeTag} numberOfLines={1}>
+                      {item.tag}
+                    </Text>
+                  ) : null}
+                </Row>
                 <Text style={styles.total}>{formatCents(item.totalSharedCents)}</Text>
               </Row>
               {item.results.map((r) => (
@@ -154,6 +163,13 @@ const makeStyles = (colors: ThemeColors) =>
     total: { fontSize: font.medium, fontWeight: '800', color: colors.text },
     resultRow: { justifyContent: 'space-between', marginTop: spacing.xs },
     resultName: { fontSize: font.body, fontWeight: '600', color: colors.text },
+    scopeTag: {
+      fontSize: font.small,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      marginLeft: spacing.s,
+      flexShrink: 1,
+    },
     resultDetail: { fontSize: font.small, color: colors.textSecondary },
     transfer: { fontSize: font.body, color: colors.primary, marginTop: spacing.s, fontWeight: '600' },
     paidButton: {

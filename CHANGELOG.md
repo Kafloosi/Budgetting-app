@@ -5,6 +5,23 @@ for a one- or two-feature drop, `+0.01` for several features moving towards
 the 1.0 release. Versions up to 0.813 are reconstructed from the commit
 history, and were set on the earlier ten-times-coarser ladder.
 
+## 0.8552
+
+Settle a single tag. `sharedExpensesForPeriod` and `computeSettlement` take an
+optional tag, so a holiday or a renovation can be squared up on its own
+without touching the rest of the month — which is how a one-off project is
+normally settled in practice. A scope picker appears on Split whenever the
+period's shared expenses carry tags, and the settlement record stores the tag
+so history says what it covered rather than looking like a duplicate of the
+month it sits under.
+
+The scope self-corrects: a tag that stops appearing in the period stops
+filtering, rather than silently narrowing the calculation to nothing.
+
+13 assertions: tag scoping still excludes non-shared expenses and other
+periods, tag listing is sorted and deduped, and a tag-only settlement
+reconciles to zero with largest-remainder rounding intact on an odd total.
+
 ## 0.8542
 
 The trash now covers more than entries. `AppState.trash` became a
