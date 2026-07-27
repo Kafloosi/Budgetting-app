@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../context/AppContext';
-import { font, scale, spacing, ThemeColors } from '../theme';
+import { font, radius, scale, spacing, ThemeColors } from '../theme';
 import { ReleaseNote } from '../changelog';
 import { Card, Label, PrimaryButton, useThemedStyles } from './ui';
 
@@ -76,7 +76,7 @@ const makeStyles = (colors: ThemeColors) =>
     bullet: {
       width: scale(6),
       height: scale(6),
-      borderRadius: scale(3),
+      borderRadius: radius.s,
       marginTop: scale(7),
       marginRight: spacing.m,
     },

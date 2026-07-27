@@ -5,6 +5,33 @@ for a one- or two-feature drop, `+0.01` for several features moving towards
 the 1.0 release. Versions up to 0.813 are reconstructed from the commit
 history, and were set on the earlier ten-times-coarser ladder.
 
+## 0.8332
+
+Fixes from the impeccable finish review of the 0.8331 redesign. The most
+serious was that `Dot`, `Meter` and `MeterRow` still pointed at the old static
+stylesheet, so the 4px edge marker DESIGN.md describes was written but never
+rendered — the round dot was still live. The floating shadowed circle of the
+add button became a square ink plane flush to the screen edge; the tab bar is
+now closed by a structural rule rather than a hairline; and the transaction
+list is one plane with hairline-divided rows instead of forty stacked planes
+each drawing its own 2px rule.
+
+Contrast: filled buttons, chips and segmented controls derived their label
+colour from `colors.white`, which failed on the lighter fills — white on the
+yellow person colour was 1.85:1. `onColor()` now picks ink or paper from the
+fill's own luminance. The hairline rule was nearly invisible at 1.66:1 and has
+been darkened, which matters in a world whose entire separation mechanism is a
+drawn line.
+
+Also removed: the last tracked-uppercase eyebrow, a nested tinted box inside a
+plane on Split, coloured borders above 1px, the elevation and shadow stack on
+the undo snackbar, and every remaining rounded corner. Category colours moved
+off the nine-hue rainbow onto the world's own range, since they land on every
+row marker and budget meter.
+
+Since 0.8331 never shipped as an APK, the in-app release note is a single
+entry covering the whole redesign rather than two describing the same change.
+
 ## 0.8331
 
 A new visual world, chosen with the `/impeccable` design skill and recorded in

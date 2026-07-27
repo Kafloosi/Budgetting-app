@@ -6,18 +6,23 @@ import { Category } from './types';
  * id they were given; reporting rolls everything up to the top level.
  *
  * Categories carry a color rather than an emoji so every list in the app
- * reads the same way — a colored dot and a label, nothing decorative.
+ * reads the same way — an edge marker and a label, nothing decorative.
+ *
+ * These stay inside the world's range (see DESIGN.md): the three primaries and
+ * ink, at two values each. A category marker is data, so it must be tellable
+ * apart, but a second rainbow palette alongside the primaries would read as
+ * decoration rather than as the system.
  */
 export const CATEGORY_COLORS = {
-  groceries: '#2AA4C9',
-  housing: '#4F63F6',
-  utilities: '#8557E0',
-  transport: '#E58E26',
-  dining: '#C245A8',
-  leisure: '#1FA97C',
-  health: '#D14343',
-  shopping: '#5E8C31',
-  other: '#6E7180',
+  groceries: '#1D4ED8',
+  housing: '#111111',
+  utilities: '#6B6B6B',
+  transport: '#F4B400',
+  dining: '#D62828',
+  leisure: '#5B8DEF',
+  health: '#8A1C1C',
+  shopping: '#B08800',
+  other: '#9A9A98',
 } as const;
 
 export const DEFAULT_CATEGORIES: Category[] = [

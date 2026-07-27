@@ -35,7 +35,7 @@ import {
   View,
 } from 'react-native';
 import { useApp, useCategories, usePeopleById, useTheme } from '../context/AppContext';
-import { font, radius, scale, spacing, ThemeColors } from '../theme';
+import { font, radius, rules, scale, spacing, ThemeColors } from '../theme';
 import {
   currentMonthKey,
   formatCents,
@@ -239,7 +239,7 @@ export default function HomeScreen() {
     const category = categoryById(isIncome ? undefined : item.categoryId);
     return (
       <Pressable onPress={() => setEditing(item)} onLongPress={() => confirmDelete(item)}>
-        <Card style={styles.txCard}>
+        <View style={styles.txRow}>
           <View
             style={[
               styles.txDot,
@@ -280,7 +280,7 @@ export default function HomeScreen() {
             {isIncome ? '+' : '-'}
             {formatCents(item.amountCents)}
           </Text>
-        </Card>
+        </View>
       </Pressable>
     );
   };
@@ -696,25 +696,31 @@ const makeStyles = (colors: ThemeColors) =>
       marginBottom: spacing.m,
     },
     search: {
-      backgroundColor: colors.card,
-      borderRadius: radius.m,
-      borderWidth: StyleSheet.hairlineWidth,
+      backgroundColor: 'transparent',
+      borderRadius: radius.s,
+      borderBottomWidth: rules.hairline,
       borderColor: colors.border,
-      paddingHorizontal: spacing.m,
+      paddingHorizontal: 0,
       paddingVertical: scale(10),
       fontSize: font.body,
       color: colors.text,
       marginBottom: spacing.m,
     },
-    txCard: {
+    // Rows live inside one plane and are divided by hairlines; the plane's own
+    // structural rule closes the list, so a row never draws one of its own.
+    txRow: {
       flexDirection: 'row',
       alignItems: 'center',
+      backgroundColor: colors.card,
+      marginHorizontal: -spacing.l,
+      paddingHorizontal: spacing.l,
       paddingVertical: spacing.m,
+      borderBottomWidth: rules.hairline,
+      borderBottomColor: colors.border,
     },
     txDot: {
-      width: scale(10),
-      height: scale(10),
-      borderRadius: scale(5),
+      width: scale(4),
+      height: scale(16),
     },
     txNote: {
       fontSize: font.body,

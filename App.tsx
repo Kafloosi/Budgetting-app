@@ -20,7 +20,7 @@ import { UndoSnackbar } from './src/components/UndoSnackbar';
 import { WhatsNew } from './src/components/WhatsNew';
 import { useThemedStyles } from './src/components/ui';
 import { notesSince } from './src/changelog';
-import { font, scale, spacing, ThemeColors } from './src/theme';
+import { font, onColor, radius, rules, scale, spacing, ThemeColors } from './src/theme';
 import { APP_VERSION } from './src/version';
 
 type Tab = 'home' | 'stats' | 'add' | 'split' | 'history' | 'settings';
@@ -188,11 +188,12 @@ const makeStyles = (colors: ThemeColors) =>
     screen: {
       flex: 1,
     },
+    // The tab bar is a plane, so a structural rule closes it — not a hairline.
     tabBar: {
       flexDirection: 'row',
       backgroundColor: colors.card,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
+      borderTopWidth: rules.structure,
+      borderTopColor: colors.rule,
       paddingTop: spacing.s,
       paddingHorizontal: spacing.s,
     },
@@ -204,29 +205,29 @@ const makeStyles = (colors: ThemeColors) =>
     tabMarker: {
       width: scale(16),
       height: scale(3),
-      borderRadius: scale(2),
+      borderRadius: radius.s,
       marginBottom: scale(5),
     },
     tabLabel: {
       fontSize: font.small,
     },
+    // A square ink plane butted against the screen edge. This world has no
+    // depth, so the add action sits flush rather than floating on a shadow.
     addButton: {
       position: 'absolute',
-      right: spacing.l,
-      width: scale(52),
-      height: scale(52),
-      borderRadius: scale(26),
+      right: 0,
+      width: scale(56),
+      height: scale(56),
+      borderRadius: radius.s,
       backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
-      shadowColor: '#000',
-      shadowOpacity: 0.25,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 4 },
-      elevation: 6,
+      borderLeftWidth: rules.structure,
+      borderTopWidth: rules.structure,
+      borderColor: colors.rule,
     },
     addButtonText: {
-      color: colors.white,
+      color: onColor(colors.primary),
       fontSize: font.xlarge,
       lineHeight: font.xlarge + scale(4),
       fontWeight: '600',

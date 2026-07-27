@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../context/AppContext';
-import { font, scale, spacing, ThemeColors } from '../../theme';
+import { font, radius, scale, spacing, ThemeColors } from '../../theme';
 import { formatCents, FREQUENCY_LABEL } from '../../utils/money';
 import { Person } from '../../types';
 import { Card, EmptyState, Label, Row, useThemedStyles } from '../../components/ui';
@@ -94,7 +94,7 @@ const makeStyles = (colors: ThemeColors) =>
     avatar: {
       width: scale(40),
       height: scale(40),
-      borderRadius: scale(20),
+      borderRadius: radius.s,
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: spacing.m,

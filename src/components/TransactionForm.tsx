@@ -13,7 +13,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { pickReceiptPhoto } from '../utils/receipts';
 import { useApp, useTheme } from '../context/AppContext';
-import { font, radius, scale, spacing, ThemeColors } from '../theme';
+import { font, radius, rules, scale, spacing, ThemeColors } from '../theme';
 import {
   centsToInput,
   currencySymbol,
@@ -440,13 +440,14 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.text,
       paddingVertical: spacing.xs,
     },
+    // Matches the Input primitive: underline, not a filled bordered box.
     dateButton: {
-      backgroundColor: colors.background,
-      borderRadius: radius.m,
-      borderWidth: 1,
+      backgroundColor: 'transparent',
+      borderRadius: radius.s,
+      borderBottomWidth: rules.hairline,
       borderColor: colors.border,
       paddingVertical: scale(10),
-      paddingHorizontal: spacing.m,
+      paddingHorizontal: 0,
     },
     dateText: {
       fontSize: font.body,

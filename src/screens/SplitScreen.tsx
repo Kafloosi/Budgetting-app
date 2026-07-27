@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useApp, usePeopleById, useTheme } from '../context/AppContext';
-import { font, radius, scale, spacing, ThemeColors } from '../theme';
+import { font, radius, rules, scale, spacing, ThemeColors } from '../theme';
 import {
   currentPeriodKey,
   formatCents,
@@ -306,15 +306,17 @@ const makeStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       paddingVertical: spacing.m,
     },
+    // Selection is the active edge, in the world's own grammar: colour lands
+    // on a rule rather than filling the region behind it.
     methodCardActive: {
-      borderColor: colors.primary,
-      borderWidth: 1.5,
-      backgroundColor: colors.primarySoft,
+      borderLeftWidth: rules.structure,
+      borderLeftColor: colors.primary,
+      paddingLeft: spacing.m,
     },
     radio: {
       width: scale(20),
       height: scale(20),
-      borderRadius: scale(10),
+      borderRadius: radius.s,
       borderWidth: 2,
       borderColor: colors.border,
       marginRight: spacing.m,
@@ -325,14 +327,13 @@ const makeStyles = (colors: ThemeColors) =>
     radioInner: {
       width: scale(10),
       height: scale(10),
-      borderRadius: scale(5),
       backgroundColor: colors.primary,
     },
     methodTitle: { fontSize: font.body, fontWeight: '700', color: colors.text },
     methodDescription: { fontSize: font.small, color: colors.textSecondary, marginTop: 1 },
     warnCard: {
-      backgroundColor: colors.expenseSoft,
-      borderColor: colors.expense,
+      borderLeftWidth: rules.structure,
+      borderLeftColor: colors.expense,
     },
     warnText: { fontSize: font.small, color: colors.text },
     percentRow: { marginBottom: spacing.s },
@@ -365,16 +366,14 @@ const makeStyles = (colors: ThemeColors) =>
     resultDetail: { fontSize: font.small, color: colors.textSecondary, marginTop: 2 },
     transfersBox: {
       marginTop: spacing.m,
-      backgroundColor: colors.primarySoft,
-      borderRadius: radius.m,
-      padding: spacing.m,
+      paddingTop: spacing.m,
+      borderTopWidth: rules.hairline,
+      borderTopColor: colors.border,
     },
     transfersTitle: {
       fontSize: font.small,
       fontWeight: '700',
       color: colors.primary,
-      textTransform: 'uppercase',
-      letterSpacing: 0.6,
       marginBottom: spacing.xs,
     },
     transferText: { fontSize: font.body, color: colors.text, marginTop: 2 },

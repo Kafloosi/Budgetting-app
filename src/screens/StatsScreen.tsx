@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp, useCategories, usePeopleById, usePremium, useTheme } from '../context/AppContext';
-import { font, scale, spacing, ThemeColors } from '../theme';
+import { font, radius, scale, spacing, ThemeColors } from '../theme';
 import {
   currentPeriodKey,
   formatCents,
@@ -604,7 +604,7 @@ const makeStyles = (colors: ThemeColors) =>
     },
     bar: {
       width: scale(9),
-      borderRadius: scale(3),
+      borderRadius: radius.s,
       marginHorizontal: scale(1.5),
     },
     barNarrow: {
@@ -619,7 +619,7 @@ const makeStyles = (colors: ThemeColors) =>
     legendDot: {
       width: scale(8),
       height: scale(8),
-      borderRadius: scale(4),
+      borderRadius: radius.s,
       marginRight: spacing.xs,
     },
     legendText: {

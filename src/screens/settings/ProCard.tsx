@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text } from 'react-native';
 import { useApp, usePremium } from '../../context/AppContext';
-import { font, scale, spacing, ThemeColors } from '../../theme';
+import { font, rules, scale, spacing, ThemeColors } from '../../theme';
 import {
   PREMIUM_PRICE_LABEL,
   PREMIUM_SELLING_POINTS,
@@ -123,12 +123,12 @@ export function ProCard() {
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     proCard: {
-      backgroundColor: colors.primarySoft,
-      borderColor: colors.primary,
+      borderLeftWidth: rules.structure,
+      borderLeftColor: colors.primary,
     },
     proCardActive: {
-      backgroundColor: colors.incomeSoft,
-      borderColor: colors.income,
+      borderLeftWidth: rules.structure,
+      borderLeftColor: colors.income,
     },
     proTitle: {
       fontSize: font.medium,

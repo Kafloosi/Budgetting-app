@@ -17,6 +17,7 @@ import {
   darkColors,
   figures,
   font,
+  onColor,
   radius,
   rules,
   scale,
@@ -140,20 +141,18 @@ export function PrimaryButton({
 }) {
   const { colors } = useTheme();
   const styles = useStyles();
+  const fill = color ?? colors.primary;
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
       style={({ pressed }) => [
         styles.button,
-        {
-          backgroundColor: color ?? colors.primary,
-          opacity: disabled ? 0.4 : pressed ? 0.8 : 1,
-        },
+        { backgroundColor: fill, opacity: disabled ? 0.4 : pressed ? 0.8 : 1 },
         style,
       ]}
     >
-      <Text style={styles.buttonLabel}>{label}</Text>
+      <Text style={[styles.buttonLabel, { color: onColor(fill) }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -188,7 +187,7 @@ export function Chip({
       <Text
         style={[
           styles.chipLabel,
-          { color: selected ? colors.white : colors.text },
+          { color: selected ? onColor(activeColor) : colors.text },
         ]}
         numberOfLines={1}
       >
@@ -211,6 +210,7 @@ export function SegmentedControl<T extends string>({
 }) {
   const { colors } = useTheme();
   const styles = useStyles();
+  const fill = activeColor ?? colors.primary;
   return (
     <View style={styles.segmentWrap}>
       {options.map((opt) => {
@@ -221,13 +221,13 @@ export function SegmentedControl<T extends string>({
             onPress={() => onChange(opt.value)}
             style={[
               styles.segment,
-              active && { backgroundColor: activeColor ?? colors.primary },
+              active && { backgroundColor: fill },
             ]}
           >
             <Text
               style={[
                 styles.segmentLabel,
-                { color: active ? colors.white : colors.textSecondary },
+                { color: active ? onColor(fill) : colors.textSecondary },
               ]}
               numberOfLines={1}
             >
@@ -346,11 +346,12 @@ export function Row({
 }
 
 /**
- * Small colour swatch marking a person, account, or category. Its geometry is
- * theme-independent, so it stays hookless — these appear once per list row.
+ * Category, person, and account colour as a 4px edge marker set against the
+ * rule — never a filled chip or a round dot. See DESIGN.md.
  */
 export function Dot({ color }: { color: string }) {
-  return <View style={[stylesStatic.dot, { backgroundColor: color }]} />;
+  const styles = useStyles();
+  return <View style={[styles.dot, { backgroundColor: color }]} />;
 }
 
 /**
@@ -363,7 +364,7 @@ export function Meter({ ratio, color }: { ratio: number; color: string }) {
     <View style={styles.track}>
       <View
         style={[
-          stylesStatic.fill,
+          styles.fill,
           { backgroundColor: color, width: `${Math.min(100, Math.max(2, ratio * 100))}%` },
         ]}
       />
@@ -395,7 +396,7 @@ export function MeterRow({
 }) {
   const styles = useStyles();
   return (
-    <View style={stylesStatic.meterRow}>
+    <View style={styles.meterRow}>
       <Row style={{ justifyContent: 'space-between' }}>
         <Row style={{ flex: 1, marginRight: spacing.s }}>
           {dotColor ? <Dot color={dotColor} /> : null}
@@ -431,19 +432,6 @@ const stylesStatic = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  dot: {
-    width: scale(10),
-    height: scale(10),
-    borderRadius: scale(5),
-    marginRight: spacing.s,
-  },
-  fill: {
-    height: '100%',
-    borderRadius: scale(4),
-  },
-  meterRow: {
-    marginBottom: spacing.m,
   },
 });
 

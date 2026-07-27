@@ -42,11 +42,6 @@ const makeStyles = (colors: ThemeColors) =>
       paddingHorizontal: spacing.l,
       flexDirection: 'row',
       alignItems: 'center',
-      elevation: 8,
-      shadowColor: '#000',
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 4 },
     },
     text: {
       flex: 1,
@@ -58,6 +53,5 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.primary,
       fontSize: font.body,
       fontWeight: '800',
-      letterSpacing: 0.5,
     },
   });

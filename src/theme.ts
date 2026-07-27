@@ -58,7 +58,7 @@ export const lightColors: ThemeColors = {
   warning: '#F4B400',
   text: '#111111',
   textSecondary: '#6B6B6B',
-  border: '#C9C9C5',
+  border: '#8E8E88',
   rule: '#111111',
   white: '#FFFFFF',
 };
@@ -75,7 +75,7 @@ export const darkColors: ThemeColors = {
   warning: '#F4C13C',
   text: '#F4F4F2',
   textSecondary: '#9A9A98',
-  border: '#3A3A38',
+  border: '#5E5E5A',
   rule: '#F4F4F2',
   white: '#FFFFFF',
 };
@@ -95,6 +95,24 @@ export const personColors = [
   '#8A1C1C',
   '#B08800',
 ];
+
+/**
+ * Ink or paper, whichever actually reads on a given fill. Selected chips and
+ * filled buttons take a person or category colour, and hard-coding white on
+ * those fails contrast on the lighter ones — yellow worst of all.
+ */
+export function onColor(fill: string): string {
+  const hex = fill.replace('#', '');
+  if (hex.length !== 6) return '#FFFFFF';
+  const channel = (i: number) => {
+    const v = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance =
+    0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
+  // 0.18 is where contrast against #111111 overtakes contrast against white.
+  return luminance > 0.18 ? '#111111' : '#FFFFFF';
+}
 
 export const spacing = {
   xs: scale(4),
