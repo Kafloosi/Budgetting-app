@@ -1,8 +1,8 @@
 import React from 'react';
-import { StyleSheet, Switch, Text, View, ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Switch, Text, View, ViewStyle } from 'react-native';
 import { useTheme } from '../../context/AppContext';
 import { font, spacing, ThemeColors } from '../../theme';
-import { Row, useThemedStyles } from '../../components/ui';
+import { Dot, Row, useThemedStyles } from '../../components/ui';
 
 /**
  * Styles shared by more than one settings section. Section-specific styles
@@ -45,6 +45,13 @@ export const makeSettingsStyles = (colors: ThemeColors) =>
       flexWrap: 'wrap',
       marginBottom: spacing.s,
     },
+    rowBody: {
+      flex: 1,
+      paddingRight: spacing.m,
+    },
+    rowAction: {
+      marginRight: spacing.l,
+    },
     settingDivider: {
       marginTop: spacing.l,
       paddingTop: spacing.l,
@@ -55,6 +62,63 @@ export const makeSettingsStyles = (colors: ThemeColors) =>
 
 export function useSettingsStyles() {
   return useThemedStyles(makeSettingsStyles);
+}
+
+/**
+ * The settings list row: an optional colour marker, a title with a muted
+ * second line, and one or two trailing actions. Open-coded in eight places
+ * before this, so any change to hit area, truncation or press feedback meant
+ * finding all eight.
+ */
+export function SettingRow({
+  title,
+  sub,
+  markerColor,
+  onEdit,
+  editLabel = 'Edit',
+  onRemove,
+  removeLabel = 'Remove',
+  trailing,
+  flush,
+}: {
+  title: string;
+  sub?: string;
+  markerColor?: string;
+  onEdit?: () => void;
+  editLabel?: string;
+  onRemove?: () => void;
+  removeLabel?: string;
+  /** Rendered instead of the actions, for rows that need something else */
+  trailing?: React.ReactNode;
+  /**
+   * Drop the row's own divider and padding, for a row already inside a
+   * container that draws them — an expandable row with an editor beneath it.
+   */
+  flush?: boolean;
+}) {
+  const styles = useSettingsStyles();
+  return (
+    <Row style={flush ? undefined : styles.listRow}>
+      {markerColor ? <Dot color={markerColor} /> : null}
+      <View style={styles.rowBody}>
+        <Text style={styles.rowTitle} numberOfLines={1}>
+          {title}
+        </Text>
+        {sub ? <Text style={styles.mutedSmall}>{sub}</Text> : null}
+      </View>
+      {trailing}
+      {onEdit ? (
+        <Pressable onPress={onEdit} hitSlop={8} style={styles.rowAction}>
+          <Text style={styles.link}>{editLabel}</Text>
+        </Pressable>
+      ) : null}
+      {onRemove ? (
+        <Pressable onPress={onRemove} hitSlop={8}>
+          <Text style={styles.danger}>{removeLabel}</Text>
+        </Pressable>
+      ) : null}
+    </Row>
+  );
 }
 
 /**

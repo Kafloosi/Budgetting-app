@@ -1,21 +1,19 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
 import { useApp, useTheme } from '../../context/AppContext';
 import { spacing } from '../../theme';
 import { formatCents, formatDate, parseAmountToCents, todayIso } from '../../utils/money';
-import { accountBalances } from '../../utils/aggregate';
-import { AccountKind, isLiability } from '../../types';
+import { accountBalances, isLiability } from '../../utils/aggregate';
+import { AccountKind } from '../../types';
 import {
   Card,
   Chip,
-  Dot,
   Input,
   Label,
   PrimaryButton,
-  Row,
   SegmentedControl,
 } from '../../components/ui';
-import { useSettingsStyles } from './common';
+import { SettingRow, useSettingsStyles } from './common';
 
 const ACCOUNT_KIND_LABEL: Record<AccountKind, string> = {
   cash: 'Cash',
@@ -94,27 +92,26 @@ export function AccountsSection() {
       <Label>Accounts</Label>
       <Card>
         {state.accounts.map((a) => (
-          <Row key={a.id} style={styles.listRow}>
-            <Dot color={a.color} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>{a.name}</Text>
-              <Text style={styles.mutedSmall}>{ACCOUNT_KIND_LABEL[a.kind]}</Text>
-            </View>
-            <Text
-              style={[
-                styles.rowTitle,
-                { marginRight: spacing.l },
-                isLiability(a.kind) ? { color: colors.expense } : null,
-              ]}
-            >
-              {isLiability(a.kind)
-                ? `owes ${formatCents(Math.abs(balances.get(a.id) ?? 0))}`
-                : formatCents(balances.get(a.id) ?? 0)}
-            </Text>
-            <Pressable onPress={() => removeAccount(a.id)} hitSlop={8}>
-              <Text style={styles.danger}>Remove</Text>
-            </Pressable>
-          </Row>
+          <SettingRow
+            key={a.id}
+            title={a.name}
+            markerColor={a.color}
+            sub={ACCOUNT_KIND_LABEL[a.kind]}
+            trailing={
+              <Text
+                style={[
+                  styles.rowTitle,
+                  { marginRight: spacing.l },
+                  isLiability(a.kind) ? { color: colors.expense } : null,
+                ]}
+              >
+                {isLiability(a.kind)
+                  ? `owes ${formatCents(Math.abs(balances.get(a.id) ?? 0))}`
+                  : formatCents(balances.get(a.id) ?? 0)}
+              </Text>
+            }
+            onRemove={() => removeAccount(a.id)}
+          />
         ))}
         <Input
           style={{ marginBottom: spacing.s }}
@@ -184,18 +181,14 @@ export function AccountsSection() {
             />
             <PrimaryButton label="Transfer" onPress={submitTransfer} />
             {state.accountTransfers.slice(0, 10).map((t) => (
-              <Row key={t.id} style={styles.listRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.rowTitle}>{formatCents(t.amountCents)}</Text>
-                  <Text style={styles.mutedSmall}>
-                    {accountName(t.fromAccountId)} → {accountName(t.toAccountId)} ·{' '}
-                    {formatDate(t.date)}
-                  </Text>
-                </View>
-                <Pressable onPress={() => removeAccountTransfer(t.id)} hitSlop={8}>
-                  <Text style={styles.danger}>Remove</Text>
-                </Pressable>
-              </Row>
+              <SettingRow
+                key={t.id}
+                title={formatCents(t.amountCents)}
+                sub={`${accountName(t.fromAccountId)} → ${accountName(
+                  t.toAccountId,
+                )} · ${formatDate(t.date)}`}
+                onRemove={() => removeAccountTransfer(t.id)}
+              />
             ))}
             <Text style={[styles.mutedSmall, { marginTop: spacing.s }]}>
               Transfers move money between your own accounts — they are not

@@ -1,11 +1,11 @@
 import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Text } from 'react-native';
 import { useApp, useCategories, usePeopleById } from '../../context/AppContext';
 import { spacing } from '../../theme';
 import { formatCents, formatDate } from '../../utils/money';
 import { daysLeft, describeTrashed, TRASH_RETENTION_DAYS } from '../../utils/trash';
-import { Card, Label, Row } from '../../components/ui';
-import { useSettingsStyles } from './common';
+import { Card, Label } from '../../components/ui';
+import { SettingRow, useSettingsStyles } from './common';
 
 /** How many deleted entries to list before it stops being a review and starts being a ledger. */
 const VISIBLE = 25;
@@ -46,25 +46,22 @@ export function TrashSection() {
                     )}`
                   : kind;
               return (
-                <Row key={id} style={styles.listRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>
-                      {title ||
-                        (item.kind === 'transaction'
-                          ? item.transaction.type === 'income'
-                            ? 'Income'
-                            : categoryById(item.transaction.categoryId).name
-                          : kind)}
-                    </Text>
-                    <Text style={styles.mutedSmall}>
-                      {detail} ·{' '}
-                      {left === 0 ? 'deleted for good today' : `${left} days left`}
-                    </Text>
-                  </View>
-                  <Pressable onPress={() => restoreFromTrash(id)} hitSlop={8}>
-                    <Text style={styles.link}>Restore</Text>
-                  </Pressable>
-                </Row>
+                <SettingRow
+                  key={id}
+                  title={
+                    title ||
+                    (item.kind === 'transaction'
+                      ? item.transaction.type === 'income'
+                        ? 'Income'
+                        : categoryById(item.transaction.categoryId).name
+                      : kind)
+                  }
+                  sub={`${detail} · ${
+                    left === 0 ? 'deleted for good today' : `${left} days left`
+                  }`}
+                  onEdit={() => restoreFromTrash(id)}
+                  editLabel="Restore"
+                />
               );
             })}
             {trash.length > VISIBLE ? (

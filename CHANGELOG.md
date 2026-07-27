@@ -5,6 +5,43 @@ for a one- or two-feature drop, `+0.01` for several features moving towards
 the 1.0 release. Versions up to 0.813 are reconstructed from the commit
 history, and were set on the earlier ten-times-coarser ladder.
 
+## 0.8674
+
+The restructure pass, applied. No behaviour change: all 159 existing
+assertions pass untouched, plus 19 new ones proving the newly shared paths
+answer identically to the code they replaced.
+
+**The envelope rule is stated once.** `effectiveTagBudgets` had restated
+`effectiveBudgets`'s entire carry-over frame — the rollover window, the carry
+reduce, the never-below-zero clamp — so the app's most load-bearing money rule
+lived in two places and could drift between the meters on one screen. Both now
+call one `applyCarryOver`, differing only in what they are keyed by.
+`budgets.ts` drops from 191 lines to 154.
+
+**One aggregation pass for categories and tags.** `expenseCentsByKeyPerPeriod`
+takes a key extractor, so an entry mapping to one category or to many tags is
+the same loop. "How an entry counts towards a tag" was stated in three places.
+
+**One settings list row.** `SettingRow` replaces the row open-coded in eight
+sections, with a `flush` variant for rows that sit inside their own container.
+
+**One budget meter card.** Category and tag meters render identically and had
+already drifted — one sorted by fullness, the other alphabetically.
+
+**Persistence is debounced (400ms).** `saveState` serializes the whole ledger
+including 30 days of trash, and `refreshWidget` re-scans a year of history and
+crosses the native bridge; both ran synchronously on every state change,
+including theme toggles and modal dismissals.
+
+**Stats honours the narrowed budget type.** It memoized on the whole `state`,
+defeating the `BudgetInput` type built specifically to let callers key on four
+fields — a year scan on every unrelated change while the screen was mounted.
+
+Also: Home no longer filters history twice per person, `EVERYONE`/`personScope`
+replace two different sentinels for the same concept, `trashedId` splits
+identity out of the display helper, `isLiability` moves out of the pure type
+declarations, and every import orphaned by the above is gone.
+
 ## 0.8673
 
 Eleven bugs found by a full audit, all fixed. Three were critical and all

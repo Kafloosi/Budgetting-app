@@ -302,17 +302,43 @@ export default function StatsScreen() {
   );
   // One rollover-aware budget computation feeds both forecasts, so they can
   // never disagree with the meters on the Home tab.
+  // Keyed on the four fields the calculation reads, not the whole state —
+  // which is exactly what the narrowed BudgetInput type in budgets.ts exists
+  // to allow. Depending on `state` re-scanned a year of history on every
+  // unrelated change, a theme toggle included, while Stats was mounted.
+  const { transactions, customCategories, budgets, personBudgets } = state;
+  const rolloverFrom = state.settings.budgetRolloverFrom;
   const liveBudgets = useMemo(
-    () => (forecastPro && monthView ? effectiveBudgets(state, currentPeriodKey('month')) : null),
-    [forecastPro, monthView, state],
+    () =>
+      forecastPro && monthView
+        ? effectiveBudgets(
+            {
+              transactions,
+              customCategories,
+              budgets,
+              personBudgets,
+              settings: { budgetRolloverFrom: rolloverFrom },
+            },
+            currentPeriodKey('month'),
+          )
+        : null,
+    [
+      forecastPro,
+      monthView,
+      transactions,
+      customCategories,
+      budgets,
+      personBudgets,
+      rolloverFrom,
+    ],
   );
   const forecast = useMemo(
-    () => (liveBudgets ? forecastCurrentMonth(state.transactions, liveBudgets) : null),
-    [liveBudgets, state.transactions],
+    () => (liveBudgets ? forecastCurrentMonth(transactions, liveBudgets) : null),
+    [liveBudgets, transactions],
   );
   const categoryForecasts = useMemo(
-    () => (liveBudgets ? forecastCategories(state.customCategories, liveBudgets) : []),
-    [liveBudgets, state.customCategories],
+    () => (liveBudgets ? forecastCategories(customCategories, liveBudgets) : []),
+    [liveBudgets, customCategories],
   );
 
   // Deliberately its own window rather than the trend's: net worth answers

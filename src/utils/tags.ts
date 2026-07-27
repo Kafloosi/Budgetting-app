@@ -1,5 +1,6 @@
 import { NavPeriodType, Transaction } from '../types';
 import { periodOfDate } from './money';
+import { expenseCentsByKeyPerPeriod } from './aggregate';
 
 /**
  * Tags are free-form labels that cut across categories — "spain trip",
@@ -50,6 +51,22 @@ export interface TagTotal {
  * tags counts in full towards both — tags overlap by design, so these
  * deliberately do not sum to the period total.
  */
+/**
+ * Tag spend per period, restricted to the tags in `only` when given. Shares
+ * the one aggregation pass with categories so tag semantics live in one
+ * place.
+ */
+export function tagCentsPerPeriod(
+  transactions: Transaction[],
+  periodType: NavPeriodType,
+  periods: Iterable<string>,
+  only?: Record<string, unknown>,
+): Map<string, Map<string, number>> {
+  return expenseCentsByKeyPerPeriod(transactions, periodType, periods, (t) =>
+    (t.tags ?? []).filter((tag) => !only || tag in only),
+  );
+}
+
 export function tagTotals(
   transactions: Transaction[],
   periodType: NavPeriodType,

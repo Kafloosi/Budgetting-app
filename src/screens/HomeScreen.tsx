@@ -43,7 +43,7 @@ import {
   formatMonth,
   monthKey,
 } from '../utils/money';
-import { accountBalances, monthTotals } from '../utils/aggregate';
+import { accountBalances, EVERYONE, monthTotals, personScope } from '../utils/aggregate';
 import { effectiveBudgets, effectiveTagBudgets } from '../utils/budgets';
 import { knownTags } from '../utils/tags';
 import { goalProgress } from '../utils/goals';
@@ -71,7 +71,7 @@ import {
 import { TransactionForm, TransactionValues } from '../components/TransactionForm';
 import { Goal, Transaction } from '../types';
 
-const COMBINED = 'combined';
+
 
 type TypeFilter = 'all' | 'income' | 'expense';
 type SearchScope = 'month' | 'all';
@@ -80,6 +80,62 @@ type SearchScope = 'month' | 'all';
 const byDateDesc = (a: Transaction, b: Transaction) =>
   a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
 
+/**
+ * A card of budget meters. Category budgets and tag budgets render
+ * identically — same fullness colours, same carry-over caption — so they
+ * share this rather than keeping two copies that had already drifted.
+ */
+function BudgetMeterCard({
+  label,
+  rows,
+  colors,
+}: {
+  label: string;
+  rows: {
+    key: string;
+    label: string;
+    dotColor?: string;
+    limitCents: number;
+    spentCents: number;
+    carryCents: number;
+  }[];
+  colors: ThemeColors;
+}) {
+  return (
+    <Card>
+      <Label>{label}</Label>
+      {rows.map(({ key, label: name, dotColor, limitCents, spentCents, carryCents }) => {
+        const ratio = limitCents > 0 ? spentCents / limitCents : 1;
+        const over = spentCents > limitCents;
+        return (
+          <MeterRow
+            key={key}
+            label={name}
+            dotColor={dotColor}
+            right={`${formatCents(spentCents)} / ${formatCents(limitCents)}`}
+            rightColor={over ? colors.expense : undefined}
+            ratio={ratio}
+            barColor={
+              over
+                ? colors.expense
+                : ratio >= NEAR_THRESHOLD
+                  ? colors.warning
+                  : colors.income
+            }
+            below={
+              carryCents === 0
+                ? undefined
+                : carryCents > 0
+                  ? `+${formatCents(carryCents)} carried over`
+                  : `${formatCents(carryCents)} carried over from overspending`
+            }
+          />
+        );
+      })}
+    </Card>
+  );
+}
+
 export default function HomeScreen() {
   const { state, removeTransaction, updateTransaction, addToGoal } = useApp();
   const { colors } = useTheme();
@@ -87,7 +143,7 @@ export default function HomeScreen() {
   const { byId: categoryById, rootOf } = useCategories();
   const personById = usePeopleById();
   const [month, setMonth] = useState(currentMonthKey());
-  const [selectedPerson, setSelectedPerson] = useState<string>(COMBINED);
+  const [selectedPerson, setSelectedPerson] = useState<string>(EVERYONE);
   const [search, setSearch] = useState('');
   const [searchScope, setSearchScope] = useState<SearchScope>('month');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
@@ -106,7 +162,7 @@ export default function HomeScreen() {
   // Combined sits at 0 and each person after it, so switching left or right
   // moves the plane the way the selector did.
   const personIndex =
-    activePersonId === COMBINED
+    activePersonId === EVERYONE
       ? 0
       : state.people.findIndex((p) => p.id === activePersonId) + 1;
 
@@ -115,7 +171,7 @@ export default function HomeScreen() {
   const forPerson = useMemo(
     () =>
       state.transactions.filter(
-        (t) => activePersonId === COMBINED || t.personId === activePersonId,
+        (t) => activePersonId === EVERYONE || t.personId === activePersonId,
       ),
     [state.transactions, activePersonId],
   );
@@ -188,14 +244,16 @@ export default function HomeScreen() {
   // Budgets and goals live here, next to the money they describe. Keyed on
   // the four inputs that actually move a budget — depending on the whole
   // state object would re-scan a year of history on every theme toggle.
-  const { transactions, customCategories, budgets, personBudgets, tagBudgets } = state;
+  const { customCategories, budgets, personBudgets, tagBudgets } = state;
   const rolloverFrom = state.settings.budgetRolloverFrom;
   const budgetRows = useMemo(
     () =>
       [
         ...effectiveBudgets(
           {
-            transactions,
+            // `forPerson` is already filtered, so the util is handed the
+            // narrowed list rather than filtering full history a second time.
+            transactions: forPerson,
             customCategories,
             budgets,
             personBudgets,
@@ -203,8 +261,10 @@ export default function HomeScreen() {
           },
           month,
           // Viewing one person shows their own limits against their own
-          // spending; Combined stays the household budget.
-          activePersonId === COMBINED ? undefined : activePersonId,
+          // spending; Combined stays the household budget. The list is
+          // pre-filtered, so this only selects which limits apply.
+          personScope(activePersonId),
+          true,
         ),
       ]
         .map(([categoryId, budget]) => ({
@@ -222,7 +282,7 @@ export default function HomeScreen() {
         }))
         .sort((a, b) => b.fullness - a.fullness),
     [
-      transactions,
+      forPerson,
       customCategories,
       budgets,
       personBudgets,
@@ -240,15 +300,15 @@ export default function HomeScreen() {
       [
         ...effectiveTagBudgets(
           {
-            transactions,
+            transactions: forPerson,
             tagBudgets,
             settings: { budgetRolloverFrom: rolloverFrom },
           },
           month,
-          activePersonId === COMBINED ? undefined : activePersonId,
+          undefined,
         ),
       ].sort(([a], [b]) => a.localeCompare(b)),
-    [transactions, tagBudgets, activePersonId, rolloverFrom, month],
+    [forPerson, tagBudgets, rolloverFrom, month],
   );
 
   const confirmFund = () => {
@@ -349,8 +409,8 @@ export default function HomeScreen() {
               >
                 <Chip
                   label="Combined"
-                  selected={selectedPerson === COMBINED}
-                  onPress={() => setSelectedPerson(COMBINED)}
+                  selected={selectedPerson === EVERYONE}
+                  onPress={() => setSelectedPerson(EVERYONE)}
                 />
                 {state.people.map((p) => (
                   <Chip
@@ -370,7 +430,7 @@ export default function HomeScreen() {
             >
               <Card style={styles.summaryCard}>
               <Text style={styles.summaryLabel}>
-                {activePersonId === COMBINED
+                {activePersonId === EVERYONE
                   ? 'combined balance'
                   : `${personById.get(activePersonId)?.name ?? ''} balance`}
               </Text>
@@ -412,71 +472,25 @@ export default function HomeScreen() {
               </Card>
             ) : null}
 
-            {tagBudgetRows.length > 0 ? (
-              <Card>
-                <Label>Tag budgets · {formatMonth(month)}</Label>
-                {tagBudgetRows.map(([tag, { limitCents, spentCents, carryCents }]) => {
-                  const ratio = limitCents > 0 ? spentCents / limitCents : 1;
-                  const over = spentCents > limitCents;
-                  return (
-                    <MeterRow
-                      key={tag}
-                      label={tag}
-                      right={`${formatCents(spentCents)} / ${formatCents(limitCents)}`}
-                      rightColor={over ? colors.expense : undefined}
-                      ratio={ratio}
-                      barColor={
-                        over
-                          ? colors.expense
-                          : ratio >= NEAR_THRESHOLD
-                            ? colors.warning
-                            : colors.income
-                      }
-                      below={
-                        carryCents === 0
-                          ? undefined
-                          : carryCents > 0
-                            ? `+${formatCents(carryCents)} carried over`
-                            : `${formatCents(carryCents)} carried over from overspending`
-                      }
-                    />
-                  );
-                })}
-              </Card>
+            {budgetRows.length > 0 ? (
+              <BudgetMeterCard
+                label={`Budgets · ${formatMonth(month)}`}
+                rows={budgetRows.map((r) => ({
+                  key: r.category.id,
+                  label: r.category.name,
+                  dotColor: r.category.color,
+                  ...r,
+                }))}
+                colors={colors}
+              />
             ) : null}
 
-            {budgetRows.length > 0 ? (
-              <Card>
-                <Label>Budgets · {formatMonth(month)}</Label>
-                {budgetRows.map(({ category, limitCents, spentCents, carryCents }) => {
-                  const ratio = limitCents > 0 ? spentCents / limitCents : 1;
-                  const over = spentCents > limitCents;
-                  return (
-                    <MeterRow
-                      key={category.id}
-                      label={category.name}
-                      dotColor={category.color}
-                      right={`${formatCents(spentCents)} / ${formatCents(limitCents)}`}
-                      rightColor={over ? colors.expense : undefined}
-                      ratio={ratio}
-                      barColor={
-                        over
-                          ? colors.expense
-                          : ratio >= NEAR_THRESHOLD
-                            ? colors.warning
-                            : colors.income
-                      }
-                      below={
-                        carryCents === 0
-                          ? undefined
-                          : carryCents > 0
-                            ? `+${formatCents(carryCents)} carried over`
-                            : `${formatCents(carryCents)} carried over from overspending`
-                      }
-                    />
-                  );
-                })}
-              </Card>
+            {tagBudgetRows.length > 0 ? (
+              <BudgetMeterCard
+                label={`Tag budgets · ${formatMonth(month)}`}
+                rows={tagBudgetRows.map(([tag, b]) => ({ key: tag, label: tag, ...b }))}
+                colors={colors}
+              />
             ) : null}
 
             {state.goals.length > 0 ? (

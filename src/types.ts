@@ -28,11 +28,6 @@ export interface Account {
   openingCents: number;
 }
 
-/** True for account kinds whose balance is money owed rather than money held */
-export function isLiability(kind: AccountKind): boolean {
-  return kind === 'debt';
-}
-
 /** Money moved between two accounts — neither income nor expense */
 export interface AccountTransfer {
   id: string;

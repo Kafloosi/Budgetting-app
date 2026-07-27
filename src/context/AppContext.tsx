@@ -30,7 +30,7 @@ import {
 } from '../categories';
 import { currentMonthKey, makeId, setActiveCurrency } from '../utils/money';
 import { catchUp } from '../utils/catchup';
-import { describeTrashed, withTrashed } from '../utils/trash';
+import { trashedId, withTrashed } from '../utils/trash';
 import { dueBudgetAlerts, pruneAlertLog, sendBudgetNotifications } from '../utils/alerts';
 import { reconcileReceipts } from '../utils/receipts';
 import { syncSettleReminder, syncWeeklyDigest } from '../utils/reminders';
@@ -157,13 +157,10 @@ function restoreEntry(state: AppState, id: string): AppState {
 }
 
 /**
- * Delete something into the trash, undoably. One helper for every restorable
- * type: `remove` takes it out of its own list, and the trashed record carries
- * enough to put it back.
+ * Long enough to collapse a burst of edits into one write, short enough that
+ * the app is never more than a blink from durable if it is killed.
  */
-function trashedId(item: TrashedItem): string {
-  return describeTrashed(item).id;
-}
+const PERSIST_DEBOUNCE_MS = 400;
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AppState>(emptyState);
@@ -215,12 +212,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     syncWeeklyDigest(digestEnabled, digestMessage);
   }, [loaded, digestEnabled, digestMessage]);
 
+  /**
+   * Persist, and push the widget, on a trailing debounce.
+   *
+   * Both are expensive: `saveState` serializes the whole ledger — including
+   * the 30 days of trash — and `refreshWidget` re-scans a year of history for
+   * the budget meters and then crosses the native bridge. Running them
+   * synchronously on every state change meant a theme toggle, a modal
+   * dismissal or each keystroke-driven re-render paid for both. A short
+   * trailing delay collapses a burst of changes into one write without any
+   * risk of losing the last one, since the final state is what gets written.
+   */
   useEffect(() => {
     if (!loadedRef.current) return;
-    saveState(state);
-    // The home-screen widget reads stored state, so refresh it whenever the
-    // app writes — otherwise it lags behind by up to Android's update period.
-    refreshWidget(state);
+    const timer = setTimeout(() => {
+      saveState(state);
+      // The widget reads stored state, so it refreshes whenever the app
+      // writes — otherwise it lags by up to Android's update period.
+      refreshWidget(state);
+    }, PERSIST_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
   }, [state]);
 
   // Fire budget notifications when a category crosses 85% / 100% of its

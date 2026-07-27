@@ -1,5 +1,6 @@
 import {
   Account,
+  AccountKind,
   AccountTransfer,
   Category,
   NavPeriodType,
@@ -46,13 +47,34 @@ export function expenseCentsByCategoryPerPeriod(
   periods: Iterable<string>,
 ): Map<string, Map<string, number>> {
   const { rootOf } = categoryIndex(customCategories);
+  return expenseCentsByKeyPerPeriod(transactions, periodType, periods, (t) => [
+    rootOf(t.categoryId),
+  ]);
+}
+
+/**
+ * Expense totals per period, grouped by whatever keys an entry belongs to.
+ *
+ * One entry maps to exactly one category but to any number of tags, so the
+ * extractor returns a list. Both groupings are the same single pass over
+ * history — writing the tag version separately meant "how an entry counts
+ * towards a tag" was stated in three places and could drift between the
+ * Stats view and the budget meters.
+ */
+export function expenseCentsByKeyPerPeriod(
+  transactions: Transaction[],
+  periodType: NavPeriodType,
+  periods: Iterable<string>,
+  keysOf: (t: Transaction) => string[],
+): Map<string, Map<string, number>> {
   const byPeriod = new Map([...periods].map((p) => [p, new Map<string, number>()]));
   for (const t of transactions) {
     if (t.type !== 'expense') continue;
     const totals = byPeriod.get(periodOfDate(periodType, t.date));
     if (!totals) continue;
-    const id = rootOf(t.categoryId);
-    totals.set(id, (totals.get(id) ?? 0) + t.amountCents);
+    for (const key of keysOf(t)) {
+      totals.set(key, (totals.get(key) ?? 0) + t.amountCents);
+    }
   }
   return byPeriod;
 }
@@ -108,6 +130,27 @@ export function rankedCategorySpending(
  * in it, minus expenses paid from it, adjusted for transfers in and out.
  * Entries without an account simply don't affect any balance.
  */
+/**
+ * The selector value meaning "not one person" — the household on a budget
+ * screen, Combined on Home. One name, because both screens translate it to
+ * `undefined` at the same boundary and had drifted to two different strings.
+ */
+export const EVERYONE = 'everyone';
+
+/** The person a scope selects, or undefined for {@link EVERYONE}. */
+export function personScope(scope: string): string | undefined {
+  return scope === EVERYONE ? undefined : scope;
+}
+
+/**
+ * True for account kinds whose balance is money owed rather than money held.
+ * Lives here rather than in types.ts, which is otherwise a pure declaration
+ * file every module imports from.
+ */
+export function isLiability(kind: AccountKind): boolean {
+  return kind === 'debt';
+}
+
 export function accountBalances(
   accounts: Account[],
   transactions: Transaction[],

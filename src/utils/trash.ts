@@ -54,9 +54,26 @@ export function withTrashed(state: Pick<AppState, 'transactions' | 'trash'>): Tr
 }
 
 /**
- * How a trashed record presents in the list: the id it restores by, what kind
- * of thing it was, and its own name. Keeps the Trash screen from switching on
- * `kind` itself.
+ * The id a trashed record restores by. Separate from the display helper: the
+ * state layer needs identity, not labels, and routing restore through a
+ * function that returns UI copy made renaming that copy look risky.
+ */
+export function trashedId(item: TrashedItem): string {
+  switch (item.kind) {
+    case 'transaction':
+      return item.transaction.id;
+    case 'goal':
+      return item.goal.id;
+    case 'template':
+      return item.template.id;
+    case 'recurring':
+      return item.rule.id;
+  }
+}
+
+/**
+ * How a trashed record presents in the list: what kind of thing it was and
+ * its own name. Keeps the Trash screen from switching on `kind` itself.
  */
 export function describeTrashed(item: TrashedItem): {
   id: string;

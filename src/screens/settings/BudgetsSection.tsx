@@ -4,6 +4,7 @@ import { useApp } from '../../context/AppContext';
 import { font, radius, scale, spacing, ThemeColors } from '../../theme';
 import { centsToInput, formatMonth, parseAmountToCents } from '../../utils/money';
 import { topLevelCategories } from '../../categories';
+import { EVERYONE } from '../../utils/aggregate';
 import { Category } from '../../types';
 import {
   Card,
@@ -66,8 +67,6 @@ function BudgetRow({
 }
 
 /** Per-category monthly limits and the carry-over switch. */
-const HOUSEHOLD = 'household';
-
 export function BudgetsSection() {
   const { state, setBudget, setPersonBudget, setBudgetRollover } = useApp();
   const shared = useSettingsStyles();
@@ -79,8 +78,8 @@ export function BudgetsSection() {
 
   // Whose limits are being edited. The household column is the default and
   // the fallback: a person only overrides the categories they set.
-  const [scope, setScope] = useState<string>(HOUSEHOLD);
-  const editingPerson = scope !== HOUSEHOLD;
+  const [scope, setScope] = useState<string>(EVERYONE);
+  const editingPerson = scope !== EVERYONE;
   const own = state.personBudgets[scope] ?? {};
 
   return (
@@ -95,7 +94,7 @@ export function BudgetsSection() {
           <View style={{ marginBottom: spacing.m }}>
             <SegmentedControl
               options={[
-                { value: HOUSEHOLD, label: 'Everyone' },
+                { value: EVERYONE, label: 'Everyone' },
                 ...state.people.map((p) => ({ value: p.id, label: p.name })),
               ]}
               value={scope}

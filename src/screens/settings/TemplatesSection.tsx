@@ -1,9 +1,9 @@
 import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Text } from 'react-native';
 import { useApp, useCategories, usePeopleById } from '../../context/AppContext';
 import { formatCents } from '../../utils/money';
-import { Card, Label, Row } from '../../components/ui';
-import { useSettingsStyles } from './common';
+import { Card, Label } from '../../components/ui';
+import { SettingRow, useSettingsStyles } from './common';
 
 /** Saved entry shapes that go back in with one tap from the Add tab. */
 export function TemplatesSection() {
@@ -23,24 +23,18 @@ export function TemplatesSection() {
           </Text>
         ) : (
           state.templates.map((template) => (
-            <Row key={template.id} style={styles.listRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rowTitle} numberOfLines={1}>
-                  {template.name}
-                </Text>
-                <Text style={styles.mutedSmall}>
-                  {template.type === 'income' ? '+' : '-'}
-                  {formatCents(template.amountCents)} ·{' '}
-                  {personById.get(template.personId)?.name ?? '?'}
-                  {template.type === 'expense'
-                    ? ` · ${categoryById(template.categoryId).name}`
-                    : ''}
-                </Text>
-              </View>
-              <Pressable onPress={() => removeTemplate(template.id)} hitSlop={8}>
-                <Text style={styles.danger}>Remove</Text>
-              </Pressable>
-            </Row>
+            <SettingRow
+              key={template.id}
+              title={template.name}
+              sub={`${template.type === 'income' ? '+' : '-'}${formatCents(
+                template.amountCents,
+              )} · ${personById.get(template.personId)?.name ?? '?'}${
+                template.type === 'expense'
+                  ? ` · ${categoryById(template.categoryId).name}`
+                  : ''
+              }`}
+              onRemove={() => removeTemplate(template.id)}
+            />
           ))
         )}
       </Card>

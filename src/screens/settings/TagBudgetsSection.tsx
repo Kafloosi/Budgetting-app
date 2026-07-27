@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
 import { useApp } from '../../context/AppContext';
 import { spacing } from '../../theme';
 import { centsToInput, parseAmountToCents } from '../../utils/money';
 import { knownTags, normalizeTag } from '../../utils/tags';
-import { Card, Chip, Input, Label, PrimaryButton, Row } from '../../components/ui';
-import { useSettingsStyles } from './common';
+import { Card, Chip, Input, Label, PrimaryButton } from '../../components/ui';
+import { SettingRow, useSettingsStyles } from './common';
 
 /**
  * Monthly limits per tag. Categories cap a kind of spending; a tag budget
@@ -54,15 +54,12 @@ export function TagBudgetsSection() {
           </Text>
         ) : (
           budgeted.map(([name, cents]) => (
-            <Row key={name} style={styles.listRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rowTitle}>{name}</Text>
-                <Text style={styles.mutedSmall}>{centsToInput(cents)} per month</Text>
-              </View>
-              <Pressable onPress={() => setTagBudget(name, null)} hitSlop={8}>
-                <Text style={styles.danger}>Remove</Text>
-              </Pressable>
-            </Row>
+            <SettingRow
+              key={name}
+              title={name}
+              sub={`${centsToInput(cents)} per month`}
+              onRemove={() => setTagBudget(name, null)}
+            />
           ))
         )}
 

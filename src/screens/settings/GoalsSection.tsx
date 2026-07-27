@@ -10,8 +10,8 @@ import {
   shiftMonth,
 } from '../../utils/money';
 import { goalProgress } from '../../utils/goals';
-import { Card, Input, Label, PeriodNav, PrimaryButton, Row } from '../../components/ui';
-import { useSettingsStyles } from './common';
+import { Card, Input, Label, PeriodNav, PrimaryButton } from '../../components/ui';
+import { SettingRow, useSettingsStyles } from './common';
 
 /** Savings goals, with an optional target month and Pro auto-contributions. */
 export function GoalsSection() {
@@ -55,24 +55,20 @@ export function GoalsSection() {
       <Label>Savings goals</Label>
       <Card>
         {state.goals.map((goal) => (
-          <Row key={goal.id} style={styles.listRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle} numberOfLines={1}>
-                {goal.name}
-              </Text>
-              <Text style={styles.mutedSmall}>
-                {goalProgress(goal).done ? 'Reached · ' : ''}
-                {formatCents(goal.savedCents)} of {formatCents(goal.targetCents)}
-                {goal.deadline ? ` · by ${formatMonth(goal.deadline)}` : ''}
-                {goal.monthlyAutoCents
-                  ? ` · auto ${formatCents(goal.monthlyAutoCents)}/month`
-                  : ''}
-              </Text>
-            </View>
-            <Pressable onPress={() => removeGoal(goal.id)} hitSlop={8}>
-              <Text style={styles.danger}>Remove</Text>
-            </Pressable>
-          </Row>
+          <SettingRow
+            key={goal.id}
+            title={goal.name}
+            sub={`${goalProgress(goal).done ? 'Reached · ' : ''}${formatCents(
+              goal.savedCents,
+            )} of ${formatCents(goal.targetCents)}${
+              goal.deadline ? ` · by ${formatMonth(goal.deadline)}` : ''
+            }${
+              goal.monthlyAutoCents
+                ? ` · auto ${formatCents(goal.monthlyAutoCents)}/month`
+                : ''
+            }`}
+            onRemove={() => removeGoal(goal.id)}
+          />
         ))}
         <Input
           style={{ marginBottom: spacing.s }}

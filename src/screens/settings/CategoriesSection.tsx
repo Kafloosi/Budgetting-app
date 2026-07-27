@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
 import { useApp, useCategories, usePremium } from '../../context/AppContext';
 import { spacing } from '../../theme';
 import { FREE_CUSTOM_CATEGORY_LIMIT, topLevelCategories } from '../../categories';
-import { Card, Chip, Dot, Input, Label, PrimaryButton, Row } from '../../components/ui';
-import { useSettingsStyles } from './common';
+import { Card, Chip, Input, Label, PrimaryButton } from '../../components/ui';
+import { SettingRow, useSettingsStyles } from './common';
 
 /** Custom categories and subcategories, capped on the free tier. */
 export function CategoriesSection() {
@@ -43,18 +43,13 @@ export function CategoriesSection() {
       <Label>Custom categories</Label>
       <Card>
         {state.customCategories.map((c) => (
-          <Row key={c.id} style={styles.listRow}>
-            <Dot color={c.color} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>{c.name}</Text>
-              {c.parentId ? (
-                <Text style={styles.mutedSmall}>under {categoryById(c.parentId).name}</Text>
-              ) : null}
-            </View>
-            <Pressable onPress={() => removeCategory(c.id)} hitSlop={8}>
-              <Text style={styles.danger}>Remove</Text>
-            </Pressable>
-          </Row>
+          <SettingRow
+            key={c.id}
+            title={c.name}
+            markerColor={c.color}
+            sub={c.parentId ? `under ${categoryById(c.parentId).name}` : undefined}
+            onRemove={() => removeCategory(c.id)}
+          />
         ))}
         <Input
           style={{ marginBottom: spacing.s }}

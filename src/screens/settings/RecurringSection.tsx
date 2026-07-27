@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useApp, usePeopleById } from '../../context/AppContext';
 import { spacing, ThemeColors } from '../../theme';
 import {
@@ -16,11 +16,10 @@ import {
   Input,
   Label,
   PrimaryButton,
-  Row,
   SegmentedControl,
   useThemedStyles,
 } from '../../components/ui';
-import { useSettingsStyles } from './common';
+import { SettingRow, useSettingsStyles } from './common';
 
 /** Rules that add rent, salary, and subscriptions automatically. */
 export function RecurringSection() {
@@ -86,30 +85,19 @@ export function RecurringSection() {
             const editing = editingRuleId === rule.id;
             return (
               <View key={rule.id} style={styles.listRow}>
-                <Row>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>
-                      {rule.note || (rule.type === 'income' ? 'Income' : 'Expense')}
-                    </Text>
-                    <Text style={styles.mutedSmall}>
-                      {rule.type === 'income' ? '+' : '-'}
-                      {formatCents(rule.amountCents)} · every{' '}
-                      {FREQUENCY_LABEL[rule.frequency]} ·{' '}
-                      {personById.get(rule.personId)?.name ?? '?'} · since{' '}
-                      {formatDate(rule.anchorDate)}
-                    </Text>
-                  </View>
-                  <Pressable
-                    onPress={() => (editing ? setEditingRuleId(null) : startEditRule(rule))}
-                    hitSlop={8}
-                    style={{ marginRight: spacing.l }}
-                  >
-                    <Text style={styles.link}>{editing ? 'Cancel' : 'Edit'}</Text>
-                  </Pressable>
-                  <Pressable onPress={() => confirmRemove(rule)} hitSlop={8}>
-                    <Text style={styles.danger}>Stop</Text>
-                  </Pressable>
-                </Row>
+                <SettingRow
+                  flush
+                  title={rule.note || (rule.type === 'income' ? 'Income' : 'Expense')}
+                  sub={`${rule.type === 'income' ? '+' : '-'}${formatCents(
+                    rule.amountCents,
+                  )} · every ${FREQUENCY_LABEL[rule.frequency]} · ${
+                    personById.get(rule.personId)?.name ?? '?'
+                  } · since ${formatDate(rule.anchorDate)}`}
+                  onEdit={() => (editing ? setEditingRuleId(null) : startEditRule(rule))}
+                  editLabel={editing ? 'Cancel' : 'Edit'}
+                  onRemove={() => confirmRemove(rule)}
+                  removeLabel="Stop"
+                />
                 {editing ? (
                   <View style={local.editBox}>
                     <Label>Amount</Label>

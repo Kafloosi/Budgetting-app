@@ -1,6 +1,7 @@
 import { AppSettings, AppState } from '../types';
 import { expenseCentsByCategoryPerPeriod } from './aggregate';
-import { monthKey as monthOf, monthsBetween, shiftMonth } from './money';
+import { monthsBetween, shiftMonth } from './money';
+import { tagCentsPerPeriod } from './tags';
 
 /**
  * Budgets, with optional carry-over between months.
@@ -47,6 +48,41 @@ function rolloverWindow(month: string, from: string | undefined): string[] {
 }
 
 /**
+ * The envelope rule itself, stated once: for each budgeted key, what was
+ * unspent in earlier months carries in, what was overspent comes off, and the
+ * result never drops below zero.
+ *
+ * Category budgets and tag budgets differ only in what they are keyed by and
+ * how spending is looked up, so they pass those in rather than restating the
+ * arithmetic — the single most load-bearing money rule in the app is not one
+ * to keep in two places.
+ */
+function applyCarryOver(
+  limits: Record<string, number>,
+  months: string[],
+  spentIn: (key: string, month: string) => number,
+): Map<string, EffectiveBudget> {
+  const result = new Map<string, EffectiveBudget>();
+  const past = months.slice(0, -1);
+  const current = months[months.length - 1];
+  for (const key of Object.keys(limits)) {
+    // Only today's limit is stored, so past months are measured against it
+    const baseCents = limits[key];
+    const carryCents = past.reduce(
+      (carry, m) => carry + baseCents - spentIn(key, m),
+      0,
+    );
+    result.set(key, {
+      baseCents,
+      carryCents,
+      limitCents: Math.max(0, baseCents + carryCents),
+      spentCents: spentIn(key, current),
+    });
+  }
+  return result;
+}
+
+/**
  * Every budgeted category's state for one month. Returned as a map so the
  * meters, the alerts, and the forecast all read the same numbers — a budget
  * shown as €450 on Home must be the same €450 that triggers a notification.
@@ -61,37 +97,27 @@ export function effectiveBudgets(
    * household one for that category.
    */
   personId?: string,
+  /**
+   * Set when `transactions` has already been narrowed to that person, so the
+   * same filter is not applied twice — `personId` then only selects which
+   * limits apply.
+   */
+  preFiltered = false,
 ): Map<string, EffectiveBudget> {
-  const result = new Map<string, EffectiveBudget>();
   const own = personId ? personBudgets?.[personId] ?? {} : {};
   const limits = personId ? { ...budgets, ...own } : budgets;
-  const ids = Object.keys(limits);
-  if (ids.length === 0) return result;
+  if (Object.keys(limits).length === 0) return new Map();
 
   const months = rolloverWindow(month, settings.budgetRolloverFrom);
   const spend = expenseCentsByCategoryPerPeriod(
-    personId ? transactions.filter((t) => t.personId === personId) : transactions,
+    personId && !preFiltered
+      ? transactions.filter((t) => t.personId === personId)
+      : transactions,
     customCategories,
     'month',
     months,
   );
-  const past = months.slice(0, -1);
-
-  for (const id of ids) {
-    // Only today's limit is stored, so past months are measured against it
-    const baseCents = limits[id];
-    const carryCents = past.reduce(
-      (carry, m) => carry + baseCents - (spend.get(m)?.get(id) ?? 0),
-      0,
-    );
-    result.set(id, {
-      baseCents,
-      carryCents,
-      limitCents: Math.max(0, baseCents + carryCents),
-      spentCents: spend.get(month)?.get(id) ?? 0,
-    });
-  }
-  return result;
+  return applyCarryOver(limits, months, (id, m) => spend.get(m)?.get(id) ?? 0);
 }
 
 
@@ -115,44 +141,14 @@ export function effectiveTagBudgets(
   month: string,
   personId?: string,
 ): Map<string, EffectiveBudget> {
-  const result = new Map<string, EffectiveBudget>();
-  const tags = Object.keys(tagBudgets);
-  if (tags.length === 0) return result;
+  if (Object.keys(tagBudgets).length === 0) return new Map();
 
   const months = rolloverWindow(month, settings.budgetRolloverFrom);
-  const window = new Set(months);
-  const scoped = personId
-    ? transactions.filter((t) => t.personId === personId)
-    : transactions;
-
-  // tag -> month -> cents, in one pass over history
-  const spend = new Map<string, Map<string, number>>();
-  for (const t of scoped) {
-    if (t.type !== 'expense' || !t.tags?.length) continue;
-    const m = monthOf(t.date);
-    if (!window.has(m)) continue;
-    for (const tag of t.tags) {
-      if (!(tag in tagBudgets)) continue;
-      let byMonth = spend.get(tag);
-      if (!byMonth) spend.set(tag, (byMonth = new Map()));
-      byMonth.set(m, (byMonth.get(m) ?? 0) + t.amountCents);
-    }
-  }
-
-  const past = months.slice(0, -1);
-  for (const tag of tags) {
-    const baseCents = tagBudgets[tag];
-    const byMonth = spend.get(tag);
-    const carryCents = past.reduce(
-      (carry, m) => carry + baseCents - (byMonth?.get(m) ?? 0),
-      0,
-    );
-    result.set(tag, {
-      baseCents,
-      carryCents,
-      limitCents: Math.max(0, baseCents + carryCents),
-      spentCents: byMonth?.get(month) ?? 0,
-    });
-  }
-  return result;
+  const spend = tagCentsPerPeriod(
+    personId ? transactions.filter((t) => t.personId === personId) : transactions,
+    'month',
+    months,
+    tagBudgets,
+  );
+  return applyCarryOver(tagBudgets, months, (tag, m) => spend.get(m)?.get(tag) ?? 0);
 }
