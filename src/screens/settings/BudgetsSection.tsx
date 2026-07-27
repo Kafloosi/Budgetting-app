@@ -1,25 +1,36 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, StyleSheet, Text } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../context/AppContext';
 import { font, radius, scale, spacing, ThemeColors } from '../../theme';
 import { centsToInput, formatMonth, parseAmountToCents } from '../../utils/money';
 import { topLevelCategories } from '../../categories';
 import { Category } from '../../types';
-import { Card, Dot, Input, Label, Row, useThemedStyles } from '../../components/ui';
+import {
+  Card,
+  Dot,
+  Input,
+  Label,
+  Row,
+  SegmentedControl,
+  useThemedStyles,
+} from '../../components/ui';
 import { ToggleRow, useSettingsStyles } from './common';
 
 /** One category's monthly limit, committed when the field loses focus. */
 function BudgetRow({
   category,
   limitCents,
+  placeholder,
   onCommit,
 }: {
   category: Category;
   limitCents?: number;
+  /** Shown when this scope has no limit of its own — the value it inherits */
+  placeholder?: string;
   onCommit: (cents: number | null) => void;
 }) {
   const styles = useThemedStyles(makeStyles);
-  const [text, setText] = useState(centsToInput(limitCents ?? 0));
+  const [text, setText] = useState(limitCents ? centsToInput(limitCents) : '');
 
   const commit = () => {
     if (text.trim() === '') {
@@ -29,7 +40,7 @@ function BudgetRow({
     const cents = parseAmountToCents(text);
     if (cents === null) {
       Alert.alert('Invalid limit', 'Enter an amount like 400 or leave it empty.');
-      setText(centsToInput(limitCents ?? 0));
+      setText(limitCents ? centsToInput(limitCents) : '');
       return;
     }
     onCommit(cents);
@@ -46,7 +57,7 @@ function BudgetRow({
         value={text}
         onChangeText={setText}
         onEndEditing={commit}
-        placeholder="no limit"
+        placeholder={placeholder ?? 'no limit'}
         keyboardType="decimal-pad"
         returnKeyType="done"
       />
@@ -55,14 +66,22 @@ function BudgetRow({
 }
 
 /** Per-category monthly limits and the carry-over switch. */
+const HOUSEHOLD = 'household';
+
 export function BudgetsSection() {
-  const { state, setBudget, setBudgetRollover } = useApp();
+  const { state, setBudget, setPersonBudget, setBudgetRollover } = useApp();
   const shared = useSettingsStyles();
   const topCategories = useMemo(
     () => topLevelCategories(state.customCategories),
     [state.customCategories],
   );
   const rolloverFrom = state.settings.budgetRolloverFrom;
+
+  // Whose limits are being edited. The household column is the default and
+  // the fallback: a person only overrides the categories they set.
+  const [scope, setScope] = useState<string>(HOUSEHOLD);
+  const editingPerson = scope !== HOUSEHOLD;
+  const own = state.personBudgets[scope] ?? {};
 
   return (
     <>
@@ -72,14 +91,40 @@ export function BudgetsSection() {
           Set a monthly spending limit per category. Subcategory spending counts
           towards its parent. Progress shows on the Home tab.
         </Text>
+        {state.people.length > 1 ? (
+          <View style={{ marginBottom: spacing.m }}>
+            <SegmentedControl
+              options={[
+                { value: HOUSEHOLD, label: 'Everyone' },
+                ...state.people.map((p) => ({ value: p.id, label: p.name })),
+              ]}
+              value={scope}
+              onChange={setScope}
+            />
+          </View>
+        ) : null}
         {topCategories.map((c) => (
           <BudgetRow
-            key={c.id}
+            key={`${scope}:${c.id}`}
             category={c}
-            limitCents={state.budgets[c.id]}
-            onCommit={(cents) => setBudget(c.id, cents)}
+            limitCents={editingPerson ? own[c.id] : state.budgets[c.id]}
+            placeholder={
+              editingPerson && state.budgets[c.id]
+                ? centsToInput(state.budgets[c.id])
+                : undefined
+            }
+            onCommit={(cents) =>
+              editingPerson ? setPersonBudget(scope, c.id, cents) : setBudget(c.id, cents)
+            }
           />
         ))}
+        {editingPerson ? (
+          <Text style={[shared.mutedSmall, { marginTop: spacing.s }]}>
+            A limit here replaces the shared one for this person, and only
+            their own spending counts against it. Leave a category empty to
+            keep using the household limit.
+          </Text>
+        ) : null}
         <ToggleRow
           divider
           title="Carry over what's left"

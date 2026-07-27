@@ -12,6 +12,15 @@ export interface ReleaseNote {
 /** Newest first */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.8532',
+    highlights: [
+      'Deleted entries now wait in a trash for 30 days, so a mistake you spot later can still be put right — Settings → Trash.',
+      'Tag budgets: cap a whole project, like a renovation or a holiday, across every category it touches.',
+      'Budgets can now belong to one person instead of the household, and the Home tab follows whoever you have selected.',
+      'Debt accounts for a card or a loan: spending adds to what you owe, paying in reduces it, and your net worth finally counts it.',
+    ],
+  },
+  {
     version: '0.8432',
     highlights: [
       'A completely new look. Panels now run edge to edge and are separated by clean lines instead of floating boxes with rounded corners and shadows.',

@@ -2,11 +2,13 @@ import { AppState } from '../types';
 import { applyRecurring } from './recurring';
 import { applyGoalAutos } from './goals';
 import { todayIso } from './money';
+import { purgeExpired } from './trash';
 
 /**
- * Advance state to "now": materialize due recurring entries, then apply due
+ * Advance state to "now": materialize due recurring entries, apply due
  * automatic goal contributions (in that order, so a goal auto can act on a
- * month a recurring income just created).
+ * month a recurring income just created), and drop trashed entries past
+ * their retention.
  *
  * This is the single definition of the clock-advance pipeline — used when
  * loading from disk, importing a backup, and returning to the foreground.
@@ -14,5 +16,7 @@ import { todayIso } from './money';
  * as the widget must use storage.readState instead.
  */
 export function catchUp(state: AppState, today = todayIso()): AppState {
-  return applyGoalAutos(applyRecurring(state, today), today.slice(0, 7));
+  const advanced = applyGoalAutos(applyRecurring(state, today), today.slice(0, 7));
+  const trash = purgeExpired(advanced.trash);
+  return trash === advanced.trash ? advanced : { ...advanced, trash };
 }

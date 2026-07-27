@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
-import { useApp } from '../../context/AppContext';
+import { useApp, useTheme } from '../../context/AppContext';
 import { spacing } from '../../theme';
 import { formatCents, formatDate, parseAmountToCents, todayIso } from '../../utils/money';
 import { accountBalances } from '../../utils/aggregate';
-import { AccountKind } from '../../types';
+import { AccountKind, isLiability } from '../../types';
 import {
   Card,
   Chip,
@@ -21,6 +21,7 @@ const ACCOUNT_KIND_LABEL: Record<AccountKind, string> = {
   cash: 'Cash',
   bank: 'Bank account',
   savings: 'Savings',
+  debt: 'Debt',
 };
 
 const ACCOUNT_KIND_OPTIONS = (
@@ -37,6 +38,7 @@ export function AccountsSection() {
     removeAccountTransfer,
   } = useApp();
   const styles = useSettingsStyles();
+  const { colors } = useTheme();
 
   const [accName, setAccName] = useState('');
   const [accKind, setAccKind] = useState<AccountKind>('bank');
@@ -56,7 +58,11 @@ export function AccountsSection() {
       Alert.alert('Missing name', 'Give the account a name, e.g. Checking.');
       return;
     }
-    addAccount(name, accKind, accOpening.trim() ? parseAmountToCents(accOpening) ?? 0 : 0);
+    const opening = accOpening.trim() ? parseAmountToCents(accOpening) ?? 0 : 0;
+    // On a debt account the user types what they owe; the balance that money
+    // actually has is negative, which is what makes net worth honest without
+    // a special case anywhere in the arithmetic.
+    addAccount(name, accKind, isLiability(accKind) ? -Math.abs(opening) : opening);
     setAccName('');
     setAccOpening('');
   };
@@ -94,8 +100,16 @@ export function AccountsSection() {
               <Text style={styles.rowTitle}>{a.name}</Text>
               <Text style={styles.mutedSmall}>{ACCOUNT_KIND_LABEL[a.kind]}</Text>
             </View>
-            <Text style={[styles.rowTitle, { marginRight: spacing.l }]}>
-              {formatCents(balances.get(a.id) ?? 0)}
+            <Text
+              style={[
+                styles.rowTitle,
+                { marginRight: spacing.l },
+                isLiability(a.kind) ? { color: colors.expense } : null,
+              ]}
+            >
+              {isLiability(a.kind)
+                ? `owes ${formatCents(Math.abs(balances.get(a.id) ?? 0))}`
+                : formatCents(balances.get(a.id) ?? 0)}
             </Text>
             <Pressable onPress={() => removeAccount(a.id)} hitSlop={8}>
               <Text style={styles.danger}>Remove</Text>
@@ -112,7 +126,9 @@ export function AccountsSection() {
           style={{ marginBottom: spacing.s }}
           value={accOpening}
           onChangeText={setAccOpening}
-          placeholder="Starting balance (optional)"
+          placeholder={
+            isLiability(accKind) ? 'Amount owed' : 'Starting balance (optional)'
+          }
           keyboardType="decimal-pad"
         />
         <View style={{ marginBottom: spacing.m }}>
@@ -125,7 +141,9 @@ export function AccountsSection() {
         <PrimaryButton label="Add account" onPress={submitAccount} />
         <Text style={[styles.mutedSmall, { marginTop: spacing.s }]}>
           Entries can then say which account they came from, and balances show
-          on the Home tab.
+          on the Home tab. A debt account holds what you owe — spending on it
+          adds to the debt, and a transfer into it is a repayment, so net
+          worth counts it against you.
         </Text>
       </Card>
 

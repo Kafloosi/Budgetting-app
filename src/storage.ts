@@ -24,8 +24,11 @@ export const emptyState: AppState = {
   templates: [],
   customCategories: [],
   budgets: {},
+  personBudgets: {},
+  tagBudgets: {},
   goals: [],
   budgetAlertLog: {},
+  trash: [],
   settings: {
     themeMode: 'auto',
     onboarded: false,
@@ -64,6 +67,11 @@ function migrate(parsed: Partial<AppState>): AppState {
     recurring: parsed.recurring ?? [],
     templates: parsed.templates ?? [],
     budgets: parsed.budgets ?? {},
+    // Added after launch: old installs simply have no per-person or tag
+    // limits and nothing in the trash, which is exactly the right default.
+    personBudgets: parsed.personBudgets ?? {},
+    tagBudgets: parsed.tagBudgets ?? {},
+    trash: parsed.trash ?? [],
     // Categories gained colors and subcategories; old emoji-based custom
     // ones keep working by taking a color from the shared palette.
     customCategories: (parsed.customCategories ?? []).map((c, i) => ({

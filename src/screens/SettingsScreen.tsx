@@ -13,7 +13,9 @@ import { PeopleSection } from './settings/PeopleSection';
 import { PrivacySection } from './settings/PrivacySection';
 import { ProCard } from './settings/ProCard';
 import { RecurringSection } from './settings/RecurringSection';
+import { TagBudgetsSection } from './settings/TagBudgetsSection';
 import { TemplatesSection } from './settings/TemplatesSection';
+import { TrashSection } from './settings/TrashSection';
 
 /**
  * Settings is a stack of independent sections, each owning its own state and
@@ -35,11 +37,13 @@ export default function SettingsScreen() {
       <TemplatesSection />
       <RecurringSection />
       <BudgetsSection />
+      <TagBudgetsSection />
       <GoalsSection />
       <CategoriesSection />
       <AppearanceSection />
       <NotificationsSection />
       <PrivacySection />
+      <TrashSection />
       <DataSection />
       <AboutSection />
     </ScrollView>

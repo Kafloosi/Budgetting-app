@@ -11,16 +11,26 @@ export interface Person {
   incomeFrequency: IncomeFrequency;
 }
 
-export type AccountKind = 'cash' | 'bank' | 'savings';
+export type AccountKind = 'cash' | 'bank' | 'savings' | 'debt';
 
-/** Where money physically sits */
+/**
+ * Where money physically sits — or, for `debt`, what is owed on a card or
+ * loan. A debt account holds a negative balance, so it subtracts from net
+ * worth without any special case in the arithmetic; only the way it is
+ * labelled and coloured differs.
+ */
 export interface Account {
   id: string;
   name: string;
   kind: AccountKind;
   color: string;
-  /** Balance before the first tracked entry */
+  /** Balance before the first tracked entry; negative on a debt account */
   openingCents: number;
+}
+
+/** True for account kinds whose balance is money owed rather than money held */
+export function isLiability(kind: AccountKind): boolean {
+  return kind === 'debt';
 }
 
 /** Money moved between two accounts — neither income nor expense */
@@ -67,6 +77,17 @@ export interface Transaction {
    * cut across categories.
    */
   tags?: string[];
+}
+
+/**
+ * A deleted entry, kept for {@link TRASH_RETENTION_DAYS} so a mistake made
+ * last month is still recoverable. The undo snackbar only covers the moment
+ * of deletion; this covers everything after it.
+ */
+export interface TrashedTransaction {
+  transaction: Transaction;
+  /** ISO timestamp of the deletion */
+  deletedAt: string;
 }
 
 /**
@@ -201,9 +222,23 @@ export interface AppState {
   recurring: RecurringRule[];
   templates: EntryTemplate[];
   customCategories: Category[];
-  /** Monthly spending limit in cents per category id */
+  /** Household monthly spending limit in cents per category id */
   budgets: Record<string, number>;
+  /**
+   * Per-person limits, keyed person id -> category id -> cents. A person's
+   * own limit replaces the household one for them; categories they have no
+   * entry for fall back to `budgets`.
+   */
+  personBudgets: Record<string, Record<string, number>>;
+  /**
+   * Monthly limit in cents per tag. Categories answer "what kind of
+   * spending"; a tag budget caps a project — a renovation, a holiday —
+   * across whatever categories it touches.
+   */
+  tagBudgets: Record<string, number>;
   goals: Goal[];
   budgetAlertLog: BudgetAlertLog;
+  /** Deleted entries, newest first, purged after TRASH_RETENTION_DAYS */
+  trash: TrashedTransaction[];
   settings: AppSettings;
 }

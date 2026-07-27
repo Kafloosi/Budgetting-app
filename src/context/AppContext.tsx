@@ -29,6 +29,7 @@ import {
 } from '../categories';
 import { currentMonthKey, makeId, setActiveCurrency } from '../utils/money';
 import { catchUp } from '../utils/catchup';
+import { withTrashed } from '../utils/trash';
 import { dueBudgetAlerts, pruneAlertLog, sendBudgetNotifications } from '../utils/alerts';
 import { reconcileReceipts } from '../utils/receipts';
 import { syncSettleReminder, syncWeeklyDigest } from '../utils/reminders';
@@ -66,6 +67,14 @@ interface AppContextValue {
   addCategory: (name: string, parentId?: string) => boolean;
   removeCategory: (id: string) => void;
   setBudget: (categoryId: string, limitCents: number | null) => void;
+  setPersonBudget: (
+    personId: string,
+    categoryId: string,
+    limitCents: number | null,
+  ) => void;
+  setTagBudget: (tag: string, limitCents: number | null) => void;
+  restoreFromTrash: (id: string) => void;
+  emptyTrash: () => void;
   addSettlement: (s: Omit<SettlementRecord, 'id' | 'createdAt'>) => void;
   removeSettlement: (id: string) => void;
   toggleSettlementPaid: (id: string) => void;
@@ -110,6 +119,20 @@ export interface UndoAction {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
+/**
+ * Move an entry from the trash back into the ledger. Shared by Undo and by
+ * Restore so the two can never drift apart.
+ */
+function restoreEntry(state: AppState, id: string): AppState {
+  const entry = state.trash.find((e) => e.transaction.id === id);
+  if (!entry) return state;
+  return {
+    ...state,
+    transactions: [entry.transaction, ...state.transactions],
+    trash: state.trash.filter((e) => e.transaction.id !== id),
+  };
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AppState>(emptyState);
   const [loaded, setLoaded] = useState(false);
@@ -123,7 +146,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       loadedRef.current = true;
       setLoaded(true);
       // Sweep receipt photos that no transaction references anymore
-      reconcileReceipts(persisted.transactions);
+      reconcileReceipts(withTrashed(persisted));
     });
   }, []);
 
@@ -281,20 +304,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  // Photo files of removed entries are cleaned up by the reconcileReceipts
-  // sweep on next launch, which runs after any undo window has closed.
+  /**
+   * Deleting moves the entry to the trash rather than dropping it: the undo
+   * snackbar only covers the next few seconds, and a mistake noticed next
+   * week is still a mistake. The trash keeps entries for
+   * TRASH_RETENTION_DAYS and is swept on launch.
+   *
+   * Undo takes the entry straight back out of the trash, so an undone delete
+   * leaves no trace there.
+   */
   const removeTransaction = useCallback(
     (id: string) => {
       const removed = stateRef.current.transactions.find((t) => t.id === id);
       if (!removed) return;
+      const deletedAt = new Date().toISOString();
       deleteWithUndo(
         `Deleted ${removed.note || 'entry'}`,
-        (s) => ({ ...s, transactions: s.transactions.filter((t) => t.id !== id) }),
-        (s) => ({ ...s, transactions: [removed, ...s.transactions] }),
+        (s) => ({
+          ...s,
+          transactions: s.transactions.filter((t) => t.id !== id),
+          trash: [{ transaction: removed, deletedAt }, ...s.trash],
+        }),
+        // Undo and Restore are the same transform, so they stay one function:
+        // anything the restore path learns later applies to both.
+        (s) => restoreEntry(s, id),
       );
     },
     [deleteWithUndo],
   );
+
+  const restoreFromTrash = useCallback((id: string) => {
+    setState((s) => restoreEntry(s, id));
+  }, []);
+
+  const emptyTrash = useCallback(() => {
+    const emptied = stateRef.current.trash;
+    if (emptied.length === 0) return;
+    deleteWithUndo(
+      `Emptied trash · ${emptied.length} ${emptied.length === 1 ? 'entry' : 'entries'}`,
+      (s) => ({ ...s, trash: [] }),
+      (s) => ({ ...s, trash: emptied }),
+    );
+  }, [deleteWithUndo]);
 
   const undo = useCallback(() => {
     if (!undoAction) return;
@@ -535,6 +586,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [deleteWithUndo],
   );
 
+  const setPersonBudget = useCallback(
+    (personId: string, categoryId: string, limitCents: number | null) => {
+      setState((s) => {
+        const own = { ...(s.personBudgets[personId] ?? {}) };
+        if (limitCents && limitCents > 0) own[categoryId] = limitCents;
+        else delete own[categoryId];
+        const personBudgets = { ...s.personBudgets };
+        // Drop the person's entry entirely once they have no own limits, so
+        // the map never accumulates empty objects.
+        if (Object.keys(own).length === 0) delete personBudgets[personId];
+        else personBudgets[personId] = own;
+        return { ...s, personBudgets };
+      });
+    },
+    [],
+  );
+
+  const setTagBudget = useCallback((tag: string, limitCents: number | null) => {
+    setState((s) => {
+      const tagBudgets = { ...s.tagBudgets };
+      if (limitCents && limitCents > 0) tagBudgets[tag] = limitCents;
+      else delete tagBudgets[tag];
+      return { ...s, tagBudgets };
+    });
+  }, []);
+
   const setBudget = useCallback((categoryId: string, limitCents: number | null) => {
     setState((s) => {
       const budgets = { ...s.budgets };
@@ -669,7 +746,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Expects normalized state (from storage.parseBackup)
   const replaceState = useCallback((next: AppState) => {
     setState(next);
-    reconcileReceipts(next.transactions);
+    reconcileReceipts(withTrashed(next));
   }, []);
 
   return (
@@ -695,6 +772,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         addCategory,
         removeCategory,
         setBudget,
+        setPersonBudget,
+        setTagBudget,
+        restoreFromTrash,
+        emptyTrash,
         addSettlement,
         removeSettlement,
         toggleSettlementPaid,

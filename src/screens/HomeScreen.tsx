@@ -44,7 +44,7 @@ import {
   monthKey,
 } from '../utils/money';
 import { accountBalances, monthTotals } from '../utils/aggregate';
-import { effectiveBudgets } from '../utils/budgets';
+import { effectiveBudgets, effectiveTagBudgets } from '../utils/budgets';
 import { knownTags } from '../utils/tags';
 import { goalProgress } from '../utils/goals';
 import { topLevelCategories } from '../categories';
@@ -188,14 +188,23 @@ export default function HomeScreen() {
   // Budgets and goals live here, next to the money they describe. Keyed on
   // the four inputs that actually move a budget — depending on the whole
   // state object would re-scan a year of history on every theme toggle.
-  const { transactions, customCategories, budgets } = state;
+  const { transactions, customCategories, budgets, personBudgets, tagBudgets } = state;
   const rolloverFrom = state.settings.budgetRolloverFrom;
   const budgetRows = useMemo(
     () =>
       [
         ...effectiveBudgets(
-          { transactions, customCategories, budgets, settings: { budgetRolloverFrom: rolloverFrom } },
+          {
+            transactions,
+            customCategories,
+            budgets,
+            personBudgets,
+            settings: { budgetRolloverFrom: rolloverFrom },
+          },
           month,
+          // Viewing one person shows their own limits against their own
+          // spending; Combined stays the household budget.
+          activePersonId === COMBINED ? undefined : activePersonId,
         ),
       ]
         .map(([categoryId, budget]) => ({
@@ -212,7 +221,34 @@ export default function HomeScreen() {
               : budget.spentCents / budget.limitCents,
         }))
         .sort((a, b) => b.fullness - a.fullness),
-    [transactions, customCategories, budgets, rolloverFrom, month, categoryById],
+    [
+      transactions,
+      customCategories,
+      budgets,
+      personBudgets,
+      activePersonId,
+      rolloverFrom,
+      month,
+      categoryById,
+    ],
+  );
+
+  // Tag budgets are a second, independent view of the same spending, so they
+  // get their own meters rather than being mixed into the category list.
+  const tagBudgetRows = useMemo(
+    () =>
+      [
+        ...effectiveTagBudgets(
+          {
+            transactions,
+            tagBudgets,
+            settings: { budgetRolloverFrom: rolloverFrom },
+          },
+          month,
+          activePersonId === COMBINED ? undefined : activePersonId,
+        ),
+      ].sort(([a], [b]) => a.localeCompare(b)),
+    [transactions, tagBudgets, activePersonId, rolloverFrom, month],
   );
 
   const confirmFund = () => {
@@ -370,6 +406,39 @@ export default function HomeScreen() {
                       markerColor={a.color}
                       value={formatCents(balance)}
                       valueColor={balance >= 0 ? colors.text : colors.expense}
+                    />
+                  );
+                })}
+              </Card>
+            ) : null}
+
+            {tagBudgetRows.length > 0 ? (
+              <Card>
+                <Label>Tag budgets · {formatMonth(month)}</Label>
+                {tagBudgetRows.map(([tag, { limitCents, spentCents, carryCents }]) => {
+                  const ratio = limitCents > 0 ? spentCents / limitCents : 1;
+                  const over = spentCents > limitCents;
+                  return (
+                    <MeterRow
+                      key={tag}
+                      label={tag}
+                      right={`${formatCents(spentCents)} / ${formatCents(limitCents)}`}
+                      rightColor={over ? colors.expense : undefined}
+                      ratio={ratio}
+                      barColor={
+                        over
+                          ? colors.expense
+                          : ratio >= NEAR_THRESHOLD
+                            ? colors.warning
+                            : colors.income
+                      }
+                      below={
+                        carryCents === 0
+                          ? undefined
+                          : carryCents > 0
+                            ? `+${formatCents(carryCents)} carried over`
+                            : `${formatCents(carryCents)} carried over from overspending`
+                      }
                     />
                   );
                 })}

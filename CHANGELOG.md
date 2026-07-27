@@ -5,6 +5,45 @@ for a one- or two-feature drop, `+0.01` for several features moving towards
 the 1.0 release. Versions up to 0.813 are reconstructed from the commit
 history, and were set on the earlier ten-times-coarser ladder.
 
+## 0.8532
+
+Four features.
+
+**A 30-day trash.** Deleting an entry now moves it to `state.trash` rather
+than dropping it — the undo snackbar only ever covered the next few seconds,
+and a mistake noticed at the end of the month was unrecoverable. Entries wait
+30 days, are swept by `catchUp` on foreground, and never count towards a
+total, budget or settlement while they wait. Undo and Restore share one
+transform so they cannot drift. Emptying the trash is itself undoable, and
+`reconcileReceipts` now counts trashed entries so restoring one still has its
+receipt photo.
+
+**Tag budgets.** `effectiveTagBudgets()` caps a project — a renovation, a
+holiday — across every category it runs through, with the same carry-over rule
+as category budgets. Tags overlap by design, so these are deliberately never
+summed with category budgets; they are a second, independent view of the same
+spending, and get their own meters on Home.
+
+**Per-person budgets.** `effectiveBudgets()` takes an optional person: their
+own limit replaces the household one for that category, only their entries
+count against it, and categories they set nothing for fall back to the shared
+limit. Home follows the person selector, so switching to one person shows
+their budget rather than the household's. Combined is unchanged.
+
+**Debt and loan accounts.** A new `debt` account kind holds what is owed as a
+negative balance, which means spending on it deepens the debt, a transfer into
+it is a repayment, and net worth counts it against you — all without a special
+case anywhere in the arithmetic. Only the labelling differs.
+
+32 assertions cover the new logic: per-person limits and fallback, tag spend
+across categories and scoped per person, carry-over for both, trash retention
+boundaries at days 29/30, and debt balances through spending, repayment and
+net worth.
+
+From the restructure pass: `restoreFromTrash` was a verbatim copy of the undo
+closure and is now one shared `restoreEntry`; a stray `purgeExpired` import
+and a speculative `payoffTargetCents` field with no writer were removed.
+
 ## 0.8432
 
 The two things the finish review said the redesign had not reached.
