@@ -20,6 +20,7 @@ import {
   formatDate,
   FREQUENCY_LABEL,
   FREQUENCY_OPTIONS,
+  localDateIso,
   parseAmountToCents,
   todayIso,
 } from '../utils/money';
@@ -271,7 +272,9 @@ export function TransactionForm({
             maximumDate={new Date()}
             onChange={(_event, picked) => {
               setShowPicker(Platform.OS === 'ios');
-              if (picked) setDate(picked.toISOString().slice(0, 10));
+              // The picker hands back a local date; toISOString would shift it
+              // back a day east of UTC.
+              if (picked) setDate(localDateIso(picked));
             }}
           />
         ) : null}

@@ -12,6 +12,16 @@ export interface ReleaseNote {
 /** Newest first */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.8673',
+    highlights: [
+      'Important fixes to yesterday’s bank import: statements that mark money out in a separate column were being imported as income, amounts like 3.5 were read as 35, and a currency symbol in front of a minus flipped an expense into income. Please re-check anything you imported.',
+      'The whole import can now genuinely be undone in one tap, as the confirmation says.',
+      'Impossible dates in a statement are now rejected instead of creating entries that no month could show.',
+      'Fixed: stopping a repeat and undoing it could leave two copies, charging you twice every month.',
+      'Fixed: the app now uses your own calendar day rather than UTC, so it no longer opens on last month if you are east of London.',
+    ],
+  },
+  {
     version: '0.8672',
     highlights: [
       'Import a CSV statement from your bank — Settings → Import bank statement.',

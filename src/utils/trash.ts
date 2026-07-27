@@ -9,10 +9,17 @@ export const TRASH_RETENTION_DAYS = 30;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Whole days since an entry was deleted, floored. */
+/**
+ * Whole days since a record was deleted, floored.
+ *
+ * An unreadable timestamp counts as fully expired rather than brand new.
+ * Returning 0 meant such a record never aged, sat in the trash forever
+ * showing "30 days left", and kept its receipt photo alive against every
+ * sweep — a leak that could only grow.
+ */
 export function daysInTrash(entry: TrashedItem, now = Date.now()): number {
   const deleted = Date.parse(entry.deletedAt);
-  if (Number.isNaN(deleted)) return 0;
+  if (Number.isNaN(deleted)) return TRASH_RETENTION_DAYS;
   return Math.max(0, Math.floor((now - deleted) / DAY_MS));
 }
 

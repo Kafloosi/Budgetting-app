@@ -59,6 +59,7 @@ interface AppContextValue {
   updatePerson: (id: string, patch: Partial<Omit<Person, 'id'>>) => void;
   removePerson: (id: string) => void;
   addTransaction: (t: Omit<Transaction, 'id'>) => void;
+  addTransactions: (entries: Omit<Transaction, 'id'>[]) => void;
   updateTransaction: (id: string, patch: Partial<Omit<Transaction, 'id'>>) => void;
   removeTransaction: (id: string) => void;
   addRecurring: (rule: Omit<RecurringRule, 'id' | 'lastAppliedDate'>) => void;
@@ -119,6 +120,20 @@ export interface UndoAction {
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
+
+/** Whether a trashed record belonged to one person, whatever kind it is. */
+function trashBelongsTo(item: TrashedItem, personId: string): boolean {
+  switch (item.kind) {
+    case 'transaction':
+      return item.transaction.personId === personId;
+    case 'recurring':
+      return item.rule.personId === personId;
+    case 'template':
+      return item.template.personId === personId;
+    case 'goal':
+      return false;
+  }
+}
 
 /**
  * Put a trashed record back where it came from. Shared by Undo and by Restore
@@ -283,19 +298,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!person) return;
       const theirTransactions = prior.transactions.filter((t) => t.personId === id);
       const theirRules = prior.recurring.filter((r) => r.personId === id);
+      // Their trashed records and their own budget limits go too. Left
+      // behind, restoring one of those entries later handed back a
+      // transaction belonging to nobody: counted in every total, filterable
+      // under no person, rendered as "?".
+      const theirTrash = prior.trash.filter((e) => trashBelongsTo(e, id));
+      const theirBudgets = prior.personBudgets[id];
       deleteWithUndo(
         `Removed ${person.name}`,
-        (s) => ({
-          ...s,
-          people: s.people.filter((p) => p.id !== id),
-          transactions: s.transactions.filter((t) => t.personId !== id),
-          recurring: s.recurring.filter((r) => r.personId !== id),
-        }),
+        (s) => {
+          const personBudgets = { ...s.personBudgets };
+          delete personBudgets[id];
+          return {
+            ...s,
+            people: s.people.filter((p) => p.id !== id),
+            transactions: s.transactions.filter((t) => t.personId !== id),
+            recurring: s.recurring.filter((r) => r.personId !== id),
+            trash: s.trash.filter((e) => !trashBelongsTo(e, id)),
+            personBudgets,
+          };
+        },
         (s) => ({
           ...s,
           people: [...s.people, person],
           transactions: [...theirTransactions, ...s.transactions],
           recurring: [...s.recurring, ...theirRules],
+          trash: [...theirTrash, ...s.trash],
+          personBudgets: theirBudgets
+            ? { ...s.personBudgets, [id]: theirBudgets }
+            : s.personBudgets,
         }),
       );
     },
@@ -308,6 +339,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       transactions: [{ ...t, id: makeId() }, ...s.transactions],
     }));
   }, []);
+
+  /**
+   * Add many entries as one undoable action — the shape a statement import
+   * needs. Adding them one at a time copied the whole list per row, and left
+   * no way back: reversing a 500-row import meant 500 manual deletes, despite
+   * the confirmation promising otherwise.
+   */
+  const addTransactions = useCallback(
+    (entries: Omit<Transaction, 'id'>[]) => {
+      if (entries.length === 0) return;
+      const created = entries.map((t) => ({ ...t, id: makeId() }));
+      const ids = new Set(created.map((t) => t.id));
+      deleteWithUndo(
+        `Imported ${created.length} ${created.length === 1 ? 'entry' : 'entries'}`,
+        (s) => ({ ...s, transactions: [...created, ...s.transactions] }),
+        // The revert drops exactly what was added, by id, so entries made
+        // between the import and the undo are untouched. Nothing goes to the
+        // trash: these were never the user's records to lose.
+        (s) => ({ ...s, transactions: s.transactions.filter((t) => !ids.has(t.id)) }),
+      );
+    },
+    [deleteWithUndo],
+  );
 
   const updateTransaction = useCallback(
     (id: string, patch: Partial<Omit<Transaction, 'id'>>) => {
@@ -419,9 +473,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             ? s.transactions.filter((t) => t.recurringId !== id)
             : s.transactions,
         }),
+        // Undo has to take the rule back OUT of the trash as well as
+        // reinstate it. Leaving it there let Undo-then-Restore create two
+        // rules with the same id, which catchUp then materialized twice —
+        // double rent, every month, with edits only patching one copy.
         (s) => ({
-          ...s,
-          recurring: [...s.recurring, rule],
+          ...restoreEntry(s, id),
+          recurring: s.recurring.some((r) => r.id === id)
+            ? s.recurring
+            : [...s.recurring, rule],
           transactions: [...generated, ...s.transactions],
         }),
       );
@@ -803,6 +863,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updatePerson,
         removePerson,
         addTransaction,
+        addTransactions,
         updateTransaction,
         removeTransaction,
         addRecurring,

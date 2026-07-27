@@ -95,6 +95,20 @@ export function detectDelimiter(headerLine: string): string {
 }
 
 /**
+ * With only one kind of separator present, decide whether it is a decimal
+ * point or a thousands group by how many digits follow it.
+ *
+ * Exactly three digits is the thousands convention ("1,234" is one thousand
+ * two hundred and thirty-four). One or two digits is a decimal — requiring
+ * exactly two treated "-3.5" as a thousands group and imported €35.00 for a
+ * €3.50 coffee, silently.
+ */
+function loneSeparatorIsDecimal(text: string, index: number): boolean {
+  const digitsAfter = text.length - index - 1;
+  return digitsAfter > 0 && digitsAfter !== 3;
+}
+
+/**
  * Parse an amount that may be European (1.234,56), Anglo (1,234.56), or
  * either with a currency symbol or a trailing/leading minus.
  *
@@ -102,10 +116,15 @@ export function detectDelimiter(headerLine: string): string {
  * is reported instead of silently importing a zero.
  */
 export function parseAmountCents(raw: string): number | null {
-  let text = raw.trim();
-  if (!text) return null;
-  const negative = /^-|-$|^\(.*\)$/.test(text);
-  text = text.replace(/[()]/g, '').replace(/[^0-9.,-]/g, '').replace(/-/g, '');
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  // Strip currency and spacing first, then look for the sign. Checking only
+  // the ends of the raw cell missed "€-45,00", where the symbol sits in front
+  // of the minus — and the minus was then stripped, turning an expense into
+  // income.
+  const signOnly = trimmed.replace(/[^0-9.,()-]/g, '');
+  const negative = signOnly.includes('-') || /^\(.*\)$/.test(signOnly);
+  const text = signOnly.replace(/[()-]/g, '');
   if (!text) return null;
 
   const lastComma = text.lastIndexOf(',');
@@ -115,11 +134,9 @@ export function parseAmountCents(raw: string): number | null {
     // Whichever comes last is the decimal separator; the other groups digits.
     decimalSep = lastComma > lastDot ? ',' : '.';
   } else if (lastComma >= 0) {
-    // A lone comma is decimal only when it looks like one: exactly two digits
-    // after it. "1,234" is a thousands group, "12,34" is twelve euros thirty-four.
-    decimalSep = text.length - lastComma === 3 ? ',' : '';
+    decimalSep = loneSeparatorIsDecimal(text, lastComma) ? ',' : '';
   } else if (lastDot >= 0) {
-    decimalSep = text.length - lastDot === 3 ? '.' : '';
+    decimalSep = loneSeparatorIsDecimal(text, lastDot) ? '.' : '';
   }
 
   // With no decimal separator every . and , is grouping, so both go. Stripping
@@ -147,7 +164,10 @@ export function parseDate(raw: string, dayFirst: boolean): string | null {
   const text = raw.trim();
   if (!text) return null;
   const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  // The ISO branch used to return before any range check, so "2026-13-45" was
+  // accepted and produced a month key no view can ever match — the entry sat
+  // in the ledger invisible to every total.
+  if (iso) return isRealDate(+iso[1], +iso[2], +iso[3]) ? `${iso[1]}-${iso[2]}-${iso[3]}` : null;
 
   const parts = text.match(/^(\d{1,4})[/\-.](\d{1,2})[/\-.](\d{2,4})/);
   if (!parts) return null;
@@ -166,8 +186,42 @@ export function parseDate(raw: string, dayFirst: boolean): string | null {
   }
   const m = Number(month);
   const d = Number(day);
-  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+  // Checking d <= 31 alone accepted "31/02/2026", which month logic files in
+  // February while ISO-week logic rolls into March — the same shared expense
+  // could then be settled twice, or never.
+  if (!isRealDate(Number(year), m, d)) return null;
   return `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+/** Days in a month, leap years included. */
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/** A calendar date that actually exists — not just digits in the right range. */
+function isRealDate(year: number, month: number, day: number): boolean {
+  if (!Number.isFinite(year) || year < 1900 || year > 2999) return false;
+  if (month < 1 || month > 12) return false;
+  return day >= 1 && day <= daysInMonth(year, month);
+}
+
+/** Words a statement uses to say "this row is money out" / "money in". */
+const DIRECTION_TOKENS: { debit: string[]; credit: string[] } = {
+  debit: ['af', 'debit', 'debet', 'dr', 'd', 'withdrawal', 'out', '-'],
+  credit: ['bij', 'credit', 'kredit', 'cr', 'c', 'deposit', 'in', '+'],
+};
+
+/**
+ * Read a direction-indicator cell. Distinct from a debit/credit *amount*
+ * column: some banks ship one amount column plus a column whose value is
+ * literally "Af" or "Bij".
+ */
+export function readDirection(cell: string): 'debit' | 'credit' | null {
+  const v = cell.trim().toLowerCase();
+  if (!v) return null;
+  if (DIRECTION_TOKENS.debit.includes(v)) return 'debit';
+  if (DIRECTION_TOKENS.credit.includes(v)) return 'credit';
+  return null;
 }
 
 function findColumn(header: string[], names: string[]): number {
@@ -199,8 +253,26 @@ export function parseBankCsv(text: string, dayFirst = true): ParsedCsv {
   const dateCol = findColumn(header, HEADERS.date);
   const amountCol = findColumn(header, HEADERS.amount);
   const noteCol = findColumn(header, HEADERS.note);
-  const debitCol = findColumn(header, HEADERS.debit);
-  const creditCol = findColumn(header, HEADERS.credit);
+  let debitCol = findColumn(header, HEADERS.debit);
+  let creditCol = findColumn(header, HEADERS.credit);
+
+  // A column matching debit/credit names that holds *words* rather than
+  // amounts is a direction indicator, not an amount column — a single "Af Bij"
+  // column matches both names at once. Treating it as an amount column meant
+  // the direction was found and then thrown away, so every unsigned debit
+  // imported as income.
+  const sample = lines.slice(1, 6).map((l) => splitCsvLine(l, delimiter));
+  const holdsDirectionWords = (col: number) =>
+    col >= 0 && sample.some((cells) => readDirection(cells[col] ?? '') !== null);
+  let directionCol = -1;
+  if (holdsDirectionWords(debitCol)) {
+    directionCol = debitCol;
+    debitCol = -1;
+  }
+  if (holdsDirectionWords(creditCol)) {
+    directionCol = creditCol;
+    creditCol = -1;
+  }
 
   const problems: RowProblem[] = [];
   if (dateCol < 0) problems.push({ line: 1, reason: 'No date column found' });
@@ -219,18 +291,29 @@ export function parseBankCsv(text: string, dayFirst = true): ParsedCsv {
       continue;
     }
 
-    // A single signed amount column, or separate debit/credit columns.
+    // Separate debit/credit amount columns are unambiguous, so they win. A
+    // single amount column is read next, and a direction indicator beside it
+    // overrides the sign — an unsigned "54,20" marked "Af" is money out.
     let signed: number | null = null;
-    if (amountCol >= 0) {
-      signed = parseAmountCents(cells[amountCol] ?? '');
-    }
-    if (signed === null && debitCol >= 0) {
+    if (debitCol >= 0) {
       const debit = parseAmountCents(cells[debitCol] ?? '');
       if (debit !== null && debit !== 0) signed = -Math.abs(debit);
     }
     if (signed === null && creditCol >= 0) {
       const credit = parseAmountCents(cells[creditCol] ?? '');
       if (credit !== null && credit !== 0) signed = Math.abs(credit);
+    }
+    if (signed === null && amountCol >= 0) {
+      const amount = parseAmountCents(cells[amountCol] ?? '');
+      if (amount !== null) {
+        const direction =
+          directionCol >= 0 ? readDirection(cells[directionCol] ?? '') : null;
+        signed = direction
+          ? direction === 'debit'
+            ? -Math.abs(amount)
+            : Math.abs(amount)
+          : amount;
+      }
     }
     if (signed === null) {
       problems.push({ line, reason: 'Could not read the amount' });

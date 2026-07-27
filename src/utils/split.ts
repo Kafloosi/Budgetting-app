@@ -114,6 +114,11 @@ export function computeSettlement(
   } else {
     weights = people.map(() => 1);
   }
+  // Percentages left at zero produced shares of zero against a non-zero
+  // total, so the result read "€340,00 shared" and "nobody owes anything" at
+  // once. Fall back to an even split, as equal-payments already does when no
+  // incomes are set.
+  if (weights.every((w) => w <= 0)) weights = people.map(() => 1);
 
   // An expense carrying its own weights is distributed on its own, and the
   // rest share the household method. Each distribute() is exact, so summing

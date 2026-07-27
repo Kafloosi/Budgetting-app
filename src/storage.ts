@@ -77,7 +77,13 @@ function migrate(parsed: Partial<AppState>): AppState {
       return (
         legacy.kind
           ? legacy
-          : { kind: 'transaction', deletedAt: legacy.deletedAt ?? '', transaction: legacy.transaction }
+          : {
+              kind: 'transaction',
+              // A real timestamp, not '': an unparseable one now reads as
+              // expired, and legacy records deserve their full retention.
+              deletedAt: legacy.deletedAt || new Date().toISOString(),
+              transaction: legacy.transaction,
+            }
       ) as TrashedItem;
     }),
     // Categories gained colors and subcategories; old emoji-based custom

@@ -25,15 +25,21 @@ const VISIBLE_PROBLEMS = 5;
  * to unpick than one that was never started.
  */
 export function CsvImportSection() {
-  const { state, addTransaction } = useApp();
+  const { state, addTransactions } = useApp();
   const styles = useSettingsStyles();
 
-  const [parsed, setParsed] = useState<ParsedCsv | null>(null);
+  const [raw, setRaw] = useState<string | null>(null);
   const [dayFirst, setDayFirst] = useState(true);
   const [personId, setPersonId] = useState(state.people[0]?.id);
   const [skipDuplicates, setSkipDuplicates] = useState(true);
-  const [raw, setRaw] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+
+  // The parse is derived from the file text and the date order, not stored
+  // beside them: keeping both meant re-parsing by hand whenever either
+  // changed, and clearing two things to start over.
+  const parsed: ParsedCsv | null = useMemo(
+    () => (raw === null ? null : parseBankCsv(raw, dayFirst)),
+    [raw, dayFirst],
+  );
 
   const duplicates = useMemo(
     () => (parsed ? findDuplicates(parsed.rows, state.transactions) : new Set<number>()),
@@ -51,19 +57,10 @@ export function CsvImportSection() {
         copyToCacheDirectory: true,
       });
       if (res.canceled || !res.assets?.[0]) return;
-      const text = await FileSystem.readAsStringAsync(res.assets[0].uri);
-      setRaw(text);
-      setParsed(parseBankCsv(text, dayFirst));
+      setRaw(await FileSystem.readAsStringAsync(res.assets[0].uri));
     } catch (e) {
       Alert.alert('Could not read the file', String(e));
     }
-  };
-
-  // Re-reading the same text is cheaper than making the user pick the file
-  // again just because the date order was read the wrong way round.
-  const changeDateOrder = (next: boolean) => {
-    setDayFirst(next);
-    if (raw) setParsed(parseBankCsv(raw, next));
   };
 
   const runImport = () => {
@@ -72,15 +69,16 @@ export function CsvImportSection() {
       'Import entries',
       `Add ${importable.length} ${importable.length === 1 ? 'entry' : 'entries'} to ${
         state.people.find((p) => p.id === personId)?.name
-      }? Anything wrong can be undone from the trash for 30 days.`,
+      }? The whole import can be undone in one tap straight afterwards.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Import',
           onPress: () => {
-            setBusy(true);
-            for (const row of importable) {
-              addTransaction({
+            // One undoable action, so the confirmation's promise is true and
+            // the whole import can be reversed from the snackbar.
+            addTransactions(
+              importable.map((row) => ({
                 personId,
                 type: row.type,
                 amountCents: row.amountCents,
@@ -91,12 +89,9 @@ export function CsvImportSection() {
                   row.type === 'expense'
                     ? guessCategory(row.note, state.customCategories)
                     : undefined,
-              });
-            }
-            setBusy(false);
-            setParsed(null);
+              })),
+            );
             setRaw(null);
-            Alert.alert('Imported', `${importable.length} entries were added.`);
           },
         },
       ],
@@ -161,7 +156,7 @@ export function CsvImportSection() {
                   { value: 'mdy', label: 'Month first' },
                 ]}
                 value={dayFirst ? 'dmy' : 'mdy'}
-                onChange={(v) => changeDateOrder(v === 'dmy')}
+                onChange={(v) => setDayFirst(v === 'dmy')}
               />
               {parsed.rows.length > 0 ? (
                 <Text style={[styles.mutedSmall, { marginTop: spacing.s }]}>
@@ -198,23 +193,16 @@ export function CsvImportSection() {
             />
 
             <PrimaryButton
-              label={
-                busy
-                  ? 'Importing…'
-                  : `Import ${importable.length} ${
-                      importable.length === 1 ? 'entry' : 'entries'
-                    }`
-              }
+              label={`Import ${importable.length} ${
+                importable.length === 1 ? 'entry' : 'entries'
+              }`}
               onPress={runImport}
-              disabled={busy || importable.length === 0 || !personId}
+              disabled={importable.length === 0 || !personId}
               style={{ marginTop: spacing.m }}
             />
             <PrimaryButton
               label="Choose a different file"
-              onPress={() => {
-                setParsed(null);
-                setRaw(null);
-              }}
+              onPress={() => setRaw(null)}
               color={styles.mutedSmall.color}
               style={{ marginTop: spacing.s }}
             />

@@ -5,6 +5,54 @@ for a one- or two-feature drop, `+0.01` for several features moving towards
 the 1.0 release. Versions up to 0.813 are reconstructed from the commit
 history, and were set on the earlier ten-times-coarser ladder.
 
+## 0.8673
+
+Eleven bugs found by a full audit, all fixed. Three were critical and all
+three silently corrupted money in the CSV importer shipped in 0.8672.
+
+**Direction columns were found and then discarded.** Debit/credit columns were
+only consulted when the amount column failed to parse, so a statement with one
+amount column plus an "Af Bij" direction column imported every expense as
+income — a 40-row statement wrong by twice its total, with every budget meter
+reading zero spent. Direction indicators are now told apart from debit/credit
+*amount* columns and override the sign.
+
+**One decimal digit was read as a thousands group.** A separator was only
+accepted as decimal with exactly two digits after it, so "-3.5" imported as
+€35.00 rather than €3.50 — a tenfold inflation, not reported as a problem row.
+Three digits is the thousands convention; one or two is a decimal.
+
+**A currency symbol in front of the minus flipped the sign.** "€-45,00" became
++€45.00 income. The sign is now read after stripping currency, not only at the
+ends of the raw cell.
+
+**Undo-then-Restore duplicated a recurring rule.** Its undo re-added the rule
+without clearing its trash entry, so restoring afterwards produced two rules
+with one id — `catchUp` materialized both, giving double rent every month,
+while edits patched only one copy. Undo now goes through `restoreEntry` like
+every other delete.
+
+**The import confirmation made a false promise.** It said the import could be
+undone from the trash; nothing was written there. A new `addTransactions` adds
+the whole statement as one undoable action, which also removes the quadratic
+copy of adding rows one at a time.
+
+**Impossible dates were accepted.** "2026-13-45" passed the ISO branch
+untouched and produced a month key no view can match; "31/02/2026" was filed in
+February by month logic and in March by week logic, so one shared expense could
+be settled twice or never. Both branches now validate against real month
+lengths, leap years included.
+
+Also fixed: trash entries with an unreadable timestamp never expired and pinned
+their receipt photos; "today" and "this month" were UTC, so east of UTC the app
+opened on the wrong month and new entries defaulted to yesterday; all-zero
+percentages showed a total alongside "nobody owes anything"; the import's
+"Importing…" state was unreachable; and deleting a person left their trashed
+entries and per-person budgets behind, so a later restore returned an entry
+belonging to nobody.
+
+33 new regression assertions, 159 in total across seven suites.
+
 ## 0.8672
 
 CSV bank statement import — the last of the five, and the largest.

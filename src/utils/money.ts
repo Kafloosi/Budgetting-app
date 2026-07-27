@@ -82,12 +82,28 @@ export function monthlyIncomeCents(
   }
 }
 
+/**
+ * A calendar date in the user's own timezone, as yyyy-mm-dd.
+ *
+ * `toISOString()` is UTC, so at 09:00 on 1 March in Auckland (UTC+13) it
+ * still reads 28 February: Home opened on the wrong month, the widget showed
+ * the wrong totals, and a new entry defaulted to yesterday. Date arithmetic
+ * elsewhere in this file operates on ISO strings and correctly stays in UTC —
+ * only reading "now" needs the local calendar.
+ */
+export function localDateIso(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function monthKey(isoDate: string): string {
   return isoDate.slice(0, 7);
 }
 
 export function currentMonthKey(): string {
-  return new Date().toISOString().slice(0, 7);
+  return localDateIso().slice(0, 7);
 }
 
 const MONTH_NAMES = [
@@ -206,7 +222,7 @@ export function elapsedDaysInMonth(month: string): number {
 }
 
 export function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return localDateIso();
 }
 
 export function addDays(isoDate: string, days: number): string {
