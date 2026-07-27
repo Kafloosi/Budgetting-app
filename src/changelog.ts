@@ -12,6 +12,14 @@ export interface ReleaseNote {
 /** Newest first */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.8672',
+    highlights: [
+      'Import a CSV statement from your bank — Settings → Import bank statement.',
+      'It reads the file and shows you what it found before anything is added, tells you which rows it could not read and why, and flags rows that look like entries you already have.',
+      'Handles European and English number formats, and asks whether dates are day-first rather than guessing.',
+    ],
+  },
+  {
     version: '0.8572',
     highlights: [
       'Split one expense differently from the rest — set 70/30 on a single dinner without changing how everything else is split.',

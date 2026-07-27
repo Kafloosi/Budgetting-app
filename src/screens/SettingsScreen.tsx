@@ -6,6 +6,7 @@ import { AccountsSection } from './settings/AccountsSection';
 import { AppearanceSection } from './settings/AppearanceSection';
 import { BudgetsSection } from './settings/BudgetsSection';
 import { CategoriesSection } from './settings/CategoriesSection';
+import { CsvImportSection } from './settings/CsvImportSection';
 import { DataSection } from './settings/DataSection';
 import { GoalsSection } from './settings/GoalsSection';
 import { NotificationsSection } from './settings/NotificationsSection';
@@ -44,6 +45,7 @@ export default function SettingsScreen() {
       <NotificationsSection />
       <PrivacySection />
       <TrashSection />
+      <CsvImportSection />
       <DataSection />
       <AboutSection />
     </ScrollView>

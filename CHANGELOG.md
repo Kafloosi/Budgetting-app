@@ -5,6 +5,37 @@ for a one- or two-feature drop, `+0.01` for several features moving towards
 the 1.0 release. Versions up to 0.813 are reconstructed from the commit
 history, and were set on the earlier ten-times-coarser ladder.
 
+## 0.8672
+
+CSV bank statement import — the last of the five, and the largest.
+
+Bank CSVs agree on almost nothing, so `csvImport.ts` parses defensively and
+reports what it could not read rather than guessing: a wrong amount is worse
+than a skipped row, because a skipped row is visible and a wrong one is not.
+It handles comma, semicolon and tab delimiters, quoted fields containing the
+delimiter, doubled quotes, European (1.234,56) and Anglo (1,234.56) decimals,
+leading, trailing and parenthesised negatives, ISO and d/m/y and m/d/y dates
+with two- or four-digit years, and either a signed amount column or separate
+debit/credit columns.
+
+Date ambiguity is asked, not guessed. 03/04/2026 is a real date under both
+readings, and picking silently would misfile entries by up to eleven months,
+so the import screen shows how the first row reads and lets the order be
+flipped without re-picking the file.
+
+Duplicates are matched on date, amount and direction rather than the
+description, because banks reword descriptions between exports. Deliberately
+conservative: a genuine second identical purchase on the same day is flagged,
+which the user can override, since silently doubling their spending is the
+worse failure.
+
+Import is two-step — read and review, then confirm — and imported entries are
+never marked shared, because a bank cannot know that.
+
+46 assertions on the parser alone, one of which caught a real bug: with no
+decimal separator only commas were stripped, so "1.234" parsed as 1.234
+rather than 1234.
+
 ## 0.8572
 
 Per-entry custom split. The split method was global, so one dinner being 70/30
