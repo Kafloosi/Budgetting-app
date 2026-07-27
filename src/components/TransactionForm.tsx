@@ -222,7 +222,7 @@ export function TransactionForm({
         </View>
       </Card>
 
-      <Card>
+      <Card divider="hairline">
         <Label>Description</Label>
         <TextInput
           style={styles.noteInput}
@@ -234,7 +234,7 @@ export function TransactionForm({
         />
       </Card>
 
-      <Card>
+      <Card divider="hairline">
         <Label>Date</Label>
         <Pressable style={styles.dateButton} onPress={() => setShowPicker(true)}>
           <Text style={styles.dateText}>
@@ -255,7 +255,7 @@ export function TransactionForm({
       </Card>
 
       {isExpense ? (
-        <Card>
+        <Card divider="hairline">
           <Label>Category</Label>
           <View style={styles.chipsWrap}>
             {topCategories.map((c) => (
@@ -292,7 +292,7 @@ export function TransactionForm({
         </Card>
       ) : null}
 
-      <Card>
+      <Card divider="hairline">
         <Label>Tags</Label>
         <Input
           value={tagDraft}
@@ -316,7 +316,7 @@ export function TransactionForm({
       </Card>
 
       {state.accounts.length > 0 ? (
-        <Card>
+        <Card divider="hairline">
           <Label>{isExpense ? 'Paid from' : 'Received in'}</Label>
           <View style={styles.chipsWrap}>
             {state.accounts.map((a) => (
@@ -333,7 +333,7 @@ export function TransactionForm({
       ) : null}
 
       {multiPerson ? (
-        <Card>
+        <Card divider="hairline">
           <Label>Who?</Label>
           <View style={styles.chipsWrap}>
             {state.people.map((p) => (
@@ -366,7 +366,7 @@ export function TransactionForm({
         </Card>
       ) : null}
 
-      <Card>
+      <Card divider="hairline">
         <Label>Receipt photo</Label>
         {photoUri ? (
           <View>
@@ -389,7 +389,7 @@ export function TransactionForm({
       ) : null}
 
       {showRepeat ? (
-        <Card>
+        <Card divider="hairline">
           <Label>Repeat</Label>
           <SegmentedControl options={REPEAT_OPTIONS} value={repeat} onChange={setRepeat} />
           {repeat !== 'none' ? (

@@ -1,6 +1,6 @@
 {
   "name": "budgetting-app",
-  "version": "0.833.2",
+  "version": "0.843.2",
   "main": "index.ts",
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",

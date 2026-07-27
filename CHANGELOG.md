@@ -5,6 +5,35 @@ for a one- or two-feature drop, `+0.01` for several features moving towards
 the 1.0 release. Versions up to 0.813 are reconstructed from the commit
 history, and were set on the earlier ten-times-coarser ladder.
 
+## 0.8432
+
+The two things the finish review said the redesign had not reached.
+
+**The plane slide**, the motion the world is named for, now exists —
+`SlidingPlane` in `ui.tsx`. When the view re-partitions, the plane travels into
+its new position on an exponential ease-out and the edge it moved from carries
+colour for the length of the movement. Home uses it when the person changes,
+Stats when the period does. One `Animated` driver runs 1 → 0 and both the
+travel and the edge resolve from it, so there is a single curve. Nothing else
+in the app animates.
+
+**Vertical division.** Every plane had been a horizontal band of identical
+width; Rietveld divides both axes into unequal parts. `LedgerRow` splits a row
+with an off-centre rule into a label column and a figure column, so figures
+bank right against a drawn line. It replaces the hand-rolled name-and-amount
+rows on Home (the flow rows and the account list), Stats (the day breakdown)
+and Split (the settlement results) — which removed nine dead style keys and a
+second definition of `meterName` that had already started to drift.
+
+The Add form was ten stacked planes each drawing its own structural rule; it is
+now one plane of hairline-divided fields via `Card divider="hairline"`.
+
+From the restructure pass: `SlidingPlane`'s `overflow: hidden` was clipping the
+full-bleed planes inside it back to the gutter, which would have quietly undone
+the plane grammar wherever the slide was used — the wrapper now bleeds to match.
+Both rule variants moved to `borderTop` so a run never stacks a hairline against
+the structural rule closing it.
+
 ## 0.8332
 
 Fixes from the impeccable finish review of the 0.8331 redesign. The most

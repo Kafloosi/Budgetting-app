@@ -26,15 +26,16 @@ import {
 } from '../utils/forecast';
 import {
   Card,
-  Dot,
   EmptyState,
   Label,
+  LedgerRow,
   MeterRow,
   PeriodNav,
   Row,
   screenChrome,
   ScreenTitle,
   SegmentedControl,
+  SlidingPlane,
   useThemedStyles,
 } from '../components/ui';
 
@@ -76,21 +77,13 @@ function DayBreakdown({
           const { label, color } = describe(t);
           const income = t.type === 'income';
           return (
-            <Row key={t.id} style={styles.dayRow}>
-              <Dot color={color} />
-              <Text style={styles.catName} numberOfLines={1}>
-                {label}
-              </Text>
-              <Text
-                style={[
-                  styles.catAmount,
-                  { color: income ? colors.income : colors.expense },
-                ]}
-              >
-                {income ? '+' : '-'}
-                {formatCents(t.amountCents)}
-              </Text>
-            </Row>
+            <LedgerRow
+              key={t.id}
+              label={label}
+              markerColor={color}
+              value={`${income ? '+' : '-'}${formatCents(t.amountCents)}`}
+              valueColor={income ? colors.income : colors.expense}
+            />
           );
         })
       )}
@@ -377,6 +370,7 @@ export default function StatsScreen() {
       </View>
       <PeriodNav periodType={view} period={period} onChange={changePeriod} />
 
+      <SlidingPlane index={monthView ? 0 : 1}>
       {state.transactions.length === 0 && state.goals.length === 0 ? (
         <EmptyState
           message="Charts appear here once you add some incomes and expenses."
@@ -580,6 +574,7 @@ export default function StatsScreen() {
 
         </>
       )}
+      </SlidingPlane>
 
     </ScrollView>
   );
@@ -670,20 +665,5 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: '700',
       color: colors.text,
       marginBottom: spacing.s,
-    },
-    dayRow: {
-      marginBottom: spacing.s,
-    },
-    catName: {
-      flex: 1,
-      fontSize: font.body,
-      fontWeight: '600',
-      color: colors.text,
-      marginRight: spacing.s,
-    },
-    catAmount: {
-      fontSize: font.body,
-      fontWeight: '700',
-      color: colors.text,
     },
   });

@@ -22,6 +22,7 @@ import {
   Card,
   Dot,
   Label,
+  LedgerRow,
   PeriodNav,
   PhotoViewer,
   PrimaryButton,
@@ -218,26 +219,17 @@ export default function SplitScreen() {
         ) : (
           <>
             {settlement.results.map((r) => (
-              <View key={r.personId} style={styles.resultRow}>
-                <Row style={{ justifyContent: 'space-between' }}>
-                  <Text style={styles.resultName}>{r.personName}</Text>
-                  <Text
-                    style={[
-                      styles.resultNet,
-                      { color: r.netCents >= 0 ? colors.income : colors.expense },
-                    ]}
-                  >
-                    {r.netCents >= 0 ? 'gets back ' : 'still owes '}
-                    {formatCents(Math.abs(r.netCents))}
-                  </Text>
-                </Row>
-                <Text style={styles.resultDetail}>
-                  paid {formatCents(r.paidCents)} · share {formatCents(r.shareCents)}
-                  {r.percentage !== undefined
+              <LedgerRow
+                key={r.personId}
+                label={r.personName}
+                sub={`paid ${formatCents(r.paidCents)} · share ${formatCents(r.shareCents)}${
+                  r.percentage !== undefined
                     ? ` (${Math.round(r.percentage * 100) / 100}%)`
-                    : ''}
-                </Text>
-              </View>
+                    : ''
+                }`}
+                value={`${r.netCents >= 0 ? '+' : '-'}${formatCents(Math.abs(r.netCents))}`}
+                valueColor={r.netCents >= 0 ? colors.income : colors.expense}
+              />
             ))}
 
             {settlement.transfers.length > 0 ? (
@@ -356,14 +348,6 @@ const makeStyles = (colors: ThemeColors) =>
     totalLabel: { fontSize: font.body, color: colors.textSecondary },
     totalValue: { fontSize: font.medium, fontWeight: '800', color: colors.text },
     emptyText: { fontSize: font.body, color: colors.textSecondary },
-    resultRow: {
-      paddingVertical: spacing.s,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
-    },
-    resultName: { fontSize: font.body, fontWeight: '700', color: colors.text },
-    resultNet: { fontSize: font.body, fontWeight: '700' },
-    resultDetail: { fontSize: font.small, color: colors.textSecondary, marginTop: 2 },
     transfersBox: {
       marginTop: spacing.m,
       paddingTop: spacing.m,

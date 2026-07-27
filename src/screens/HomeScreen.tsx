@@ -58,12 +58,14 @@ import {
   Figure,
   Input,
   Label,
+  LedgerRow,
   MeterRow,
   PeriodNav,
   PrimaryButton,
   Row,
   screenChrome,
   SegmentedControl,
+  SlidingPlane,
   useThemedStyles,
 } from '../components/ui';
 import { TransactionForm, TransactionValues } from '../components/TransactionForm';
@@ -101,6 +103,12 @@ export default function HomeScreen() {
   const multiPerson = state.people.length > 1;
   const activePersonId =
     !multiPerson && state.people.length === 1 ? state.people[0].id : selectedPerson;
+  // Combined sits at 0 and each person after it, so switching left or right
+  // moves the plane the way the selector did.
+  const personIndex =
+    activePersonId === COMBINED
+      ? 0
+      : state.people.findIndex((p) => p.id === activePersonId) + 1;
 
   // Unsorted: ISO dates sort bytewise, and only the slices actually shown
   // need ordering — sorting all history on every save would be wasted work.
@@ -320,7 +328,11 @@ export default function HomeScreen() {
               </ScrollView>
             ) : null}
 
-            <Card style={styles.summaryCard}>
+            <SlidingPlane
+              index={personIndex}
+              edgeColor={personById.get(activePersonId)?.color}
+            >
+              <Card style={styles.summaryCard}>
               <Text style={styles.summaryLabel}>
                 {activePersonId === COMBINED
                   ? 'combined balance'
@@ -333,15 +345,18 @@ export default function HomeScreen() {
               >
                 {formatCents(netCents)}
               </Figure>
-              <View style={styles.flowRow}>
-                <Text style={styles.flowLabel}>in</Text>
-                <Figure color={colors.income}>+{formatCents(incomeCents)}</Figure>
-              </View>
-              <View style={[styles.flowRow, styles.flowRowLast]}>
-                <Text style={styles.flowLabel}>out</Text>
-                <Figure color={colors.expense}>-{formatCents(expenseCents)}</Figure>
-              </View>
-            </Card>
+              <LedgerRow
+                label="in"
+                value={`+${formatCents(incomeCents)}`}
+                valueColor={colors.income}
+              />
+              <LedgerRow
+                label="out"
+                value={`-${formatCents(expenseCents)}`}
+                valueColor={colors.expense}
+              />
+              </Card>
+            </SlidingPlane>
 
             {state.accounts.length > 0 ? (
               <Card>
@@ -349,20 +364,13 @@ export default function HomeScreen() {
                 {state.accounts.map((a) => {
                   const balance = balances.get(a.id) ?? 0;
                   return (
-                    <Row key={a.id} style={styles.accountRow}>
-                      <Dot color={a.color} />
-                      <Text style={styles.meterName} numberOfLines={1}>
-                        {a.name}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.meterValue,
-                          { color: balance >= 0 ? colors.text : colors.expense },
-                        ]}
-                      >
-                        {formatCents(balance)}
-                      </Text>
-                    </Row>
+                    <LedgerRow
+                      key={a.id}
+                      label={a.name}
+                      markerColor={a.color}
+                      value={formatCents(balance)}
+                      valueColor={balance >= 0 ? colors.text : colors.expense}
+                    />
                   );
                 })}
               </Card>
@@ -641,7 +649,7 @@ const makeStyles = (colors: ThemeColors) =>
     ...screenChrome(colors),
     listContent: screenChrome(colors).content,
     // Flush to the plane edge, not centred: the balance is the thesis and the
-    // two flows sit beneath it in one ruled column with the digits aligned.
+    // two flows sit beneath it as ledger rows with the digits aligned.
     summaryCard: {
       paddingTop: spacing.xl,
       paddingBottom: spacing.s,
@@ -655,29 +663,9 @@ const makeStyles = (colors: ThemeColors) =>
       marginTop: spacing.xs,
       marginBottom: spacing.l,
     },
-    flowRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingVertical: spacing.m,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
-    },
-    flowRowLast: {
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-    },
-    flowLabel: {
-      fontSize: font.body,
-      color: colors.textSecondary,
-      fontWeight: '600',
-    },
     filterToggle: { fontSize: font.body, fontWeight: '600', color: colors.primary },
     filterClear: { fontSize: font.body, fontWeight: '600', color: colors.expense },
     chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.s },
-    accountRow: { marginBottom: spacing.s },
-    meterName: { flex: 1, fontSize: font.body, fontWeight: '600', color: colors.text },
-    meterValue: { fontSize: font.body, fontWeight: '700', color: colors.text },
     fundLink: {
       marginTop: spacing.xs,
       fontSize: font.small,

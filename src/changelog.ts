@@ -12,12 +12,14 @@ export interface ReleaseNote {
 /** Newest first */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    version: '0.8332',
+    version: '0.8432',
     highlights: [
       'A completely new look. Panels now run edge to edge and are separated by clean lines instead of floating boxes with rounded corners and shadows.',
       'Amounts are set in aligned figures, so columns of numbers line up and are far easier to scan.',
       'Colour now means something: blue for money in, red for money out, yellow when you are close to a limit.',
       'Category and person colours are now a clean edge marker beside each row instead of a round dot.',
+      'Switching between people, or between month and year, now slides the panel into place and marks the edge it came from.',
+      'Amounts across Stats, Split and your account list are lined up in a proper column against a divider, so they are easy to compare at a glance.',
       'Nothing moved and nothing was removed — same tabs, same features, same numbers.',
     ],
   },

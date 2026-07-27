@@ -28,6 +28,15 @@ house is a machine you operate. We build the machine.
 - **Content sits flush to its plane edge.** Text aligns to the rule, not to a
   centred inset. Asymmetry is the composition; centred layouts are refused
   except for the numeric column, which is right-aligned so digits line up.
+- **Divide both axes, unequally.** A plane is not only a horizontal band.
+  Every list of name-and-amount is split by an off-centre vertical rule into a
+  label column and a figure column — `LedgerRow` in `ui.tsx` is where the app
+  does this, and it is the reason the figures bank right against a drawn line
+  instead of floating at the end of a row.
+- **A run of fields is one plane, not many.** `Card` closes with a structural
+  rule by default; `divider="hairline"` is for fields that together make a
+  single plane, so a long form reads as one column rather than as a stack of
+  containers.
 
 ## Colour
 
@@ -71,11 +80,15 @@ task needs.
 
 ## Motion
 
-One authored moment, not scattered transitions: **the plane slide.** When the
-view partitions — switching person, opening an entry to edit, revealing a
-month behind the current one — the plane moves and the moving edge carries its
-primary colour for the duration of the movement. Every slide is reversible,
-and nothing else in the app animates for decoration.
+One authored moment, not scattered transitions: **the plane slide**, built as
+`SlidingPlane` in `ui.tsx`. When the view re-partitions — a different person on
+Home, a different period on Stats — the plane travels into its new position on
+an exponential ease-out and the edge it moved from carries colour for the
+length of the movement, then releases it. The direction comes from the index of
+what is showing, so moving left in the selector moves the plane left.
+
+Nothing else in the app animates. There are no hover effects, no entrance
+animations on lists, and no transition on a control that merely changed state.
 
 ## What this world refuses
 

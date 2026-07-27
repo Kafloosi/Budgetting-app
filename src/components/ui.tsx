@@ -1,5 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import {
+  Animated,
+  Easing,
   Image,
   Modal,
   Pressable,
@@ -79,12 +81,25 @@ function useStyles(): ReturnType<typeof makeStyles> {
 export function Card({
   children,
   style,
+  divider = 'structure',
 }: {
   children: React.ReactNode;
   style?: ViewStyle;
+  /**
+   * How this plane is closed. `structure` separates one plane from the next;
+   * `hairline` is for a run of fields that together form a single plane, so a
+   * long form reads as one column rather than as a stack of containers.
+   */
+  divider?: 'structure' | 'hairline';
 }) {
   const styles = useStyles();
-  return <View style={[styles.card, style]}>{children}</View>;
+  return (
+    <View
+      style={[styles.card, divider === 'hairline' ? styles.cardHairline : null, style]}
+    >
+      {children}
+    </View>
+  );
 }
 
 export function ScreenTitle({ title, subtitle }: { title: string; subtitle?: string }) {
@@ -335,6 +350,120 @@ export function EmptyState({ message }: { message: string }) {
   );
 }
 
+/** How far a plane travels when the view re-partitions. */
+const SLIDE_DISTANCE = scale(28);
+
+/**
+ * The world's one authored motion: when the view re-partitions — a different
+ * person, a different period — the plane slides into its new position and the
+ * edge it moved from carries colour for the length of the movement, then
+ * releases it. Nothing else in the app animates.
+ *
+ * `index` is the position of whatever is showing, so the plane knows which
+ * way to travel; passing the same index twice is a no-op.
+ */
+export function SlidingPlane({
+  index,
+  edgeColor,
+  children,
+  style,
+}: {
+  index: number;
+  edgeColor?: string;
+  children: React.ReactNode;
+  style?: ViewStyle;
+}) {
+  const { colors } = useTheme();
+  const styles = useStyles();
+  // One driver runs 1 -> 0: the plane's travel is that value interpolated, and
+  // the edge's opacity is the value itself, so both resolve on one curve.
+  const progress = useRef<Animated.Value | null>(null);
+  if (!progress.current) progress.current = new Animated.Value(0);
+  const driver = progress.current;
+  const previous = useRef(index);
+  const direction = useRef(1);
+
+  useEffect(() => {
+    if (previous.current === index) return;
+    direction.current = index > previous.current ? 1 : -1;
+    previous.current = index;
+    driver.setValue(1);
+    Animated.timing(driver, {
+      toValue: 0,
+      duration: 300,
+      easing: Easing.out(Easing.exp),
+      useNativeDriver: true,
+    }).start();
+  }, [index, driver]);
+
+  const travel = useMemo(
+    () => ({
+      transform: [
+        {
+          translateX: driver.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, direction.current * SLIDE_DISTANCE],
+          }),
+        },
+      ],
+    }),
+    [driver, index],
+  );
+
+  return (
+    <View style={[styles.slidingPlane, style]}>
+      <Animated.View style={travel}>{children}</Animated.View>
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.movingEdge,
+          { backgroundColor: edgeColor ?? colors.primary, opacity: driver },
+        ]}
+      />
+    </View>
+  );
+}
+
+/**
+ * A row divided by an off-centre vertical rule: label on the left, figure on
+ * the right. Rietveld divides both axes into unequal parts, and this is where
+ * the app does it — every list of name-and-amount reads as one ledger column
+ * with the digits aligned against a drawn line.
+ */
+export function LedgerRow({
+  label,
+  sub,
+  value,
+  valueColor,
+  markerColor,
+}: {
+  label: string;
+  sub?: string;
+  value: string;
+  valueColor?: string;
+  markerColor?: string;
+}) {
+  const styles = useStyles();
+  return (
+    <View style={styles.ledgerRow}>
+      {markerColor ? <Dot color={markerColor} /> : null}
+      <View style={styles.ledgerLabel}>
+        <Text style={styles.ledgerName} numberOfLines={1}>
+          {label}
+        </Text>
+        {sub ? (
+          <Text style={styles.ledgerSub} numberOfLines={1}>
+            {sub}
+          </Text>
+        ) : null}
+      </View>
+      <View style={styles.ledgerFigure}>
+        <Figure color={valueColor}>{value}</Figure>
+      </View>
+    </View>
+  );
+}
+
 export function Row({
   children,
   style,
@@ -445,6 +574,14 @@ const makeStyles = (colors: ThemeColors) =>
       paddingVertical: spacing.l,
       borderBottomWidth: rules.structure,
       borderBottomColor: colors.rule,
+    },
+    // Rule on top, so a run of fields never stacks a hairline against the
+    // structural rule that closes the plane below it.
+    cardHairline: {
+      borderBottomWidth: 0,
+      borderTopWidth: rules.hairline,
+      borderTopColor: colors.border,
+      paddingVertical: spacing.m,
     },
     screenTitle: {
       backgroundColor: colors.card,
@@ -614,6 +751,50 @@ const makeStyles = (colors: ThemeColors) =>
       marginTop: spacing.xs,
       fontSize: font.small,
       color: colors.textSecondary,
+    },
+    // Bleeds like a plane so the Cards inside keep their full width; without
+    // the matching negative margin the clip would cut them to the gutter.
+    slidingPlane: {
+      overflow: 'hidden',
+      marginHorizontal: -spacing.l,
+      paddingHorizontal: spacing.l,
+    },
+    movingEdge: {
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: rules.structure,
+    },
+    // The vertical division: an unequal split with the figures banked right
+    // against a drawn rule.
+    ledgerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.m,
+      borderTopWidth: rules.hairline,
+      borderTopColor: colors.border,
+    },
+    ledgerLabel: {
+      flex: 1,
+      paddingRight: spacing.m,
+    },
+    ledgerName: {
+      fontSize: font.body,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    ledgerSub: {
+      marginTop: spacing.xs,
+      fontSize: font.small,
+      color: colors.textSecondary,
+    },
+    ledgerFigure: {
+      minWidth: scale(96),
+      alignItems: 'flex-end',
+      paddingLeft: spacing.m,
+      borderLeftWidth: rules.hairline,
+      borderLeftColor: colors.border,
     },
     viewer: {
       flex: 1,
