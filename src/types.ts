@@ -77,6 +77,16 @@ export interface Transaction {
    * cut across categories.
    */
   tags?: string[];
+  /**
+   * Per-person weights for this expense alone, overriding the household split
+   * method. One dinner being 70/30 should not require changing how every
+   * other shared expense is split.
+   *
+   * Weights, not percentages: they are normalized when the share is computed,
+   * so 70/30 and 7/3 mean the same thing and nothing has to add to 100.
+   * Ignored unless the entry is shared.
+   */
+  splitShares?: Record<string, number>;
 }
 
 /**

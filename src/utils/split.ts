@@ -42,6 +42,19 @@ export function sharedTagsForPeriod(
   return [...tags].sort();
 }
 
+/**
+ * True when this expense carries usable per-entry weights: at least one of
+ * the current people has a positive weight. A stale override — everyone at
+ * zero, or weights naming only people who have since been removed — falls
+ * back to the household method rather than silently assigning the whole
+ * amount to nobody.
+ */
+export function hasCustomSplit(expense: Transaction, people: Person[]): boolean {
+  const shares = expense.splitShares;
+  if (!shares) return false;
+  return people.some((p) => (shares[p.id] ?? 0) > 0);
+}
+
 function paidByPerson(expenses: Transaction[], personId: string): number {
   return expenses
     .filter((t) => t.personId === personId)
@@ -102,7 +115,21 @@ export function computeSettlement(
     weights = people.map(() => 1);
   }
 
-  const shares = distribute(totalSharedCents, weights);
+  // An expense carrying its own weights is distributed on its own, and the
+  // rest share the household method. Each distribute() is exact, so summing
+  // exact distributions keeps the cents reconciling — which a single pass
+  // over a mixed total would not.
+  const custom = expenses.filter((t) => hasCustomSplit(t, people));
+  const standard = expenses.filter((t) => !hasCustomSplit(t, people));
+  const shares = distribute(
+    standard.reduce((sum, t) => sum + t.amountCents, 0),
+    weights,
+  );
+  for (const expense of custom) {
+    const own = people.map((p) => Math.max(0, expense.splitShares?.[p.id] ?? 0));
+    const perEntry = distribute(expense.amountCents, own);
+    for (let i = 0; i < shares.length; i++) shares[i] += perEntry[i];
+  }
 
   const results: PersonResult[] = people.map((person, i) => {
     const paidCents = paidByPerson(expenses, person.id);

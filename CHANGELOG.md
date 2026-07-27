@@ -5,6 +5,32 @@ for a one- or two-feature drop, `+0.01` for several features moving towards
 the 1.0 release. Versions up to 0.813 are reconstructed from the commit
 history, and were set on the earlier ten-times-coarser ladder.
 
+## 0.8572
+
+Per-entry custom split. The split method was global, so one dinner being 70/30
+meant changing how every shared expense was split. An expense can now carry
+its own per-person weights that override the household method for that entry
+alone.
+
+Weights, not percentages: they are normalized when the share is computed, so
+70/30 and 7/3 mean the same thing and nothing has to add to 100. An override
+with everyone at zero, or one naming only people who have since been removed,
+falls back to the household method rather than assigning the amount to nobody.
+
+The arithmetic changed shape to keep the cents exact. A single
+largest-remainder pass over a mixed total would not reconcile, so entries with
+their own weights are distributed individually and the rest share one pass of
+the household method; summing exact distributions stays exact.
+
+Per-entry weights are stripped at the recurring-rule and template boundaries,
+the same way receipt photos already were — a spread would otherwise smuggle
+them past the type, and neither a rule nor a template has one occurrence to
+split.
+
+15 assertions: override beats method, weights normalize, mixed custom and
+standard entries reconcile, odd cents land exactly, stale overrides fall back,
+and a zero-weight person owes nothing.
+
 ## 0.8562
 
 Budget and goal meters on the home-screen widget. The widget showed month

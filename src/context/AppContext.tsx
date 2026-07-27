@@ -375,10 +375,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addRecurring = useCallback(
     (rule: Omit<RecurringRule, 'id' | 'lastAppliedDate'>) => {
-      // Photos belong to individual entries, never to rules — strip here at
-      // the boundary since a spread would smuggle the field past the type.
-      const { photoUri: _photo, ...clean } = rule as typeof rule & {
+      // Photos and per-entry split weights belong to individual entries,
+      // never to rules — strip here at the boundary, since a spread would
+      // smuggle the fields past the type without TypeScript objecting.
+      const {
+        photoUri: _photo,
+        splitShares: _shares,
+        ...clean
+      } = rule as typeof rule & {
         photoUri?: string;
+        splitShares?: Record<string, number>;
       };
       setState((s) =>
         catchUp({
@@ -434,13 +440,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addTemplate = useCallback((template: Omit<EntryTemplate, 'id'>) => {
+    // A template is the shape of a purchase, not one occurrence, so a
+    // per-entry split override has no meaning on it. Same boundary strip as
+    // addRecurring.
+    const { splitShares: _shares, ...shape } = template as typeof template & {
+      splitShares?: Record<string, number>;
+    };
     setState((s) => {
       // Re-saving the same entry shape replaces the old template rather than
       // stacking near-identical chips the user then has to tell apart.
       const kept = s.templates.filter(
-        (t) => t.name.toLowerCase() !== template.name.toLowerCase(),
+        (t) => t.name.toLowerCase() !== shape.name.toLowerCase(),
       );
-      return { ...s, templates: [...kept, { ...template, id: makeId() }] };
+      return { ...s, templates: [...kept, { ...shape, id: makeId() }] };
     });
   }, []);
 

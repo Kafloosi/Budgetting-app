@@ -12,6 +12,13 @@ export interface ReleaseNote {
 /** Newest first */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.8572',
+    highlights: [
+      'Split one expense differently from the rest — set 70/30 on a single dinner without changing how everything else is split.',
+      'They are shares, not percentages, so they never have to add up to 100.',
+    ],
+  },
+  {
     version: '0.8562',
     highlights: [
       'The home-screen widget now shows your fullest budget meters under the balance, so you can check whether there is room without unlocking the phone.',

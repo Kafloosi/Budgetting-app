@@ -29,7 +29,7 @@ import {
   subcategoriesOf,
   topLevelCategories,
 } from '../categories';
-import { Card, Chip, Input, Label, PhotoViewer, PrimaryButton, SegmentedControl, useThemedStyles } from './ui';
+import { Card, Chip, Dot, Input, Label, PhotoViewer, PrimaryButton, Row, SegmentedControl, useThemedStyles } from './ui';
 import { knownTags, normalizeTag } from '../utils/tags';
 import { IncomeFrequency, TransactionType } from '../types';
 
@@ -50,6 +50,8 @@ export interface TransactionValues {
   accountId?: string;
   tags?: string[];
   repeat: RepeatOption;
+  /** Per-person weights for this expense alone; absent means the household method */
+  splitShares?: Record<string, number>;
 }
 
 const REPEAT_OPTIONS: { value: RepeatOption; label: string }[] = [
@@ -85,6 +87,12 @@ export function TransactionForm({
   );
   const [date, setDate] = useState(initial?.date ?? today);
   const [shared, setShared] = useState(initial?.shared ?? true);
+  const [customSplit, setCustomSplit] = useState(!!initial?.splitShares);
+  const [splitWeights, setSplitWeights] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      state.people.map((p) => [p.id, String(initial?.splitShares?.[p.id] ?? '')]),
+    ),
+  );
   const [categoryId, setCategoryId] = useState<string>(
     initial?.categoryId ?? OTHER_CATEGORY_ID,
   );
@@ -167,6 +175,20 @@ export function TransactionForm({
     // save is the kind of thing that makes people distrust the field.
     const pendingTag = normalizeTag(tagDraft);
     const allTags = pendingTag && !tags.includes(pendingTag) ? [...tags, pendingTag] : tags;
+    // Weights are only meaningful on a shared expense, and only when at least
+    // one person carries a positive one — otherwise fall back to the household
+    // method rather than saving an override that splits nothing.
+    const parsedWeights = Object.fromEntries(
+      state.people.map((p) => [p.id, Number(splitWeights[p.id]) || 0]),
+    );
+    const useCustomSplit =
+      isExpense &&
+      multiPerson &&
+      shared &&
+      customSplit &&
+      Object.values(parsedWeights).some((w) => w > 0);
+    const weightsForSubmit = useCustomSplit ? parsedWeights : undefined;
+
     return {
       type,
       amountCents: cents,
@@ -179,6 +201,7 @@ export function TransactionForm({
       accountId: state.accounts.length > 0 ? accountId : undefined,
       tags: allTags.length > 0 ? allTags : undefined,
       repeat,
+      splitShares: useCustomSplit ? weightsForSubmit : undefined,
     };
   };
 
@@ -366,6 +389,51 @@ export function TransactionForm({
         </Card>
       ) : null}
 
+      {multiPerson && isExpense && shared ? (
+        <Card divider="hairline">
+          <Row>
+            <View style={{ flex: 1, paddingRight: spacing.m }}>
+              <Text style={styles.sharedTitle}>Split this one differently</Text>
+              <Text style={styles.sharedHint}>
+                Overrides the household method for this expense only.
+              </Text>
+            </View>
+            <Switch
+              value={customSplit}
+              onValueChange={setCustomSplit}
+              trackColor={{ true: colors.primary, false: colors.border }}
+              thumbColor={colors.white}
+            />
+          </Row>
+          {customSplit ? (
+            <View style={{ marginTop: spacing.m }}>
+              {state.people.map((p) => (
+                <Row key={p.id} style={styles.weightRow}>
+                  <Dot color={p.color} />
+                  <Text style={styles.weightName} numberOfLines={1}>
+                    {p.name}
+                  </Text>
+                  <Input
+                    style={styles.weightInput}
+                    value={splitWeights[p.id] ?? ''}
+                    onChangeText={(v) =>
+                      setSplitWeights((w) => ({ ...w, [p.id]: v }))
+                    }
+                    placeholder="0"
+                    keyboardType="decimal-pad"
+                  />
+                </Row>
+              ))}
+              <Text style={styles.sharedHint}>
+                Shares, not percentages — they do not have to add up to 100.
+                70 and 30 splits the same way as 7 and 3. Leave everyone at
+                zero to go back to the household method.
+              </Text>
+            </View>
+          ) : null}
+        </Card>
+      ) : null}
+
       <Card divider="hairline">
         <Label>Receipt photo</Label>
         {photoUri ? (
@@ -457,6 +525,22 @@ const makeStyles = (colors: ThemeColors) =>
     chipsWrap: {
       flexDirection: 'row',
       flexWrap: 'wrap',
+    },
+    weightRow: {
+      justifyContent: 'space-between',
+      marginBottom: spacing.s,
+    },
+    weightName: {
+      flex: 1,
+      fontSize: font.body,
+      fontWeight: '600',
+      color: colors.text,
+      marginRight: spacing.m,
+    },
+    weightInput: {
+      width: scale(90),
+      paddingVertical: scale(6),
+      textAlign: 'right',
     },
     sharedRow: {
       flexDirection: 'row',

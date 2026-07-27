@@ -2,7 +2,7 @@
   "expo": {
     "name": "Budgetting",
     "slug": "Budgetting-app",
-    "version": "0.8562",
+    "version": "0.8572",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -17,7 +17,7 @@
     },
     "android": {
       "package": "com.kafloosi.budgettingapp",
-      "versionCode": 8562,
+      "versionCode": 8572,
       "adaptiveIcon": {
         "backgroundColor": "#4F63F6",
         "foregroundImage": "./assets/android-icon-foreground.png",
