@@ -12,6 +12,13 @@ export interface ReleaseNote {
 /** Newest first */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.8542',
+    highlights: [
+      'The trash now catches savings goals, quick templates and recurring entries too, not just entries — all recoverable for 30 days.',
+      'People, accounts and categories still delete for good, because removing one also removes everything filed under it.',
+    ],
+  },
+  {
     version: '0.8532',
     highlights: [
       'Deleted entries now wait in a trash for 30 days, so a mistake you spot later can still be put right — Settings → Trash.',

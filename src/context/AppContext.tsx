@@ -19,6 +19,7 @@ import {
   RecurringRule,
   SettlementRecord,
   Transaction,
+  TrashedItem,
 } from '../types';
 import { emptyState, loadState, saveState, wipeAllData } from '../storage';
 import {
@@ -29,7 +30,7 @@ import {
 } from '../categories';
 import { currentMonthKey, makeId, setActiveCurrency } from '../utils/money';
 import { catchUp } from '../utils/catchup';
-import { withTrashed } from '../utils/trash';
+import { describeTrashed, withTrashed } from '../utils/trash';
 import { dueBudgetAlerts, pruneAlertLog, sendBudgetNotifications } from '../utils/alerts';
 import { reconcileReceipts } from '../utils/receipts';
 import { syncSettleReminder, syncWeeklyDigest } from '../utils/reminders';
@@ -120,17 +121,33 @@ export interface UndoAction {
 const AppContext = createContext<AppContextValue | null>(null);
 
 /**
- * Move an entry from the trash back into the ledger. Shared by Undo and by
- * Restore so the two can never drift apart.
+ * Put a trashed record back where it came from. Shared by Undo and by Restore
+ * so the two can never drift apart, and switched on `kind` so every restorable
+ * type goes through one path rather than one per entity.
  */
 function restoreEntry(state: AppState, id: string): AppState {
-  const entry = state.trash.find((e) => e.transaction.id === id);
-  if (!entry) return state;
-  return {
-    ...state,
-    transactions: [entry.transaction, ...state.transactions],
-    trash: state.trash.filter((e) => e.transaction.id !== id),
-  };
+  const item = state.trash.find((e) => trashedId(e) === id);
+  if (!item) return state;
+  const trash = state.trash.filter((e) => trashedId(e) !== id);
+  switch (item.kind) {
+    case 'transaction':
+      return { ...state, trash, transactions: [item.transaction, ...state.transactions] };
+    case 'goal':
+      return { ...state, trash, goals: [...state.goals, item.goal] };
+    case 'template':
+      return { ...state, trash, templates: [...state.templates, item.template] };
+    case 'recurring':
+      return { ...state, trash, recurring: [...state.recurring, item.rule] };
+  }
+}
+
+/**
+ * Delete something into the trash, undoably. One helper for every restorable
+ * type: `remove` takes it out of its own list, and the trashed record carries
+ * enough to put it back.
+ */
+function trashedId(item: TrashedItem): string {
+  return describeTrashed(item).id;
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -323,7 +340,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         (s) => ({
           ...s,
           transactions: s.transactions.filter((t) => t.id !== id),
-          trash: [{ transaction: removed, deletedAt }, ...s.trash],
+          trash: [{ kind: 'transaction', transaction: removed, deletedAt }, ...s.trash],
         }),
         // Undo and Restore are the same transform, so they stay one function:
         // anything the restore path learns later applies to both.
@@ -381,10 +398,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const generated = deleteTransactions
         ? prior.transactions.filter((t) => t.recurringId === id)
         : [];
+      const deletedAt = new Date().toISOString();
       deleteWithUndo(
         `Stopped ${rule.note || 'repeat'}`,
         (s) => ({
           ...s,
+          // Only a non-cascading stop is recoverable from the trash; deleting
+          // the generated entries too is a cascade that cannot be half-undone.
+          trash: deleteTransactions
+            ? s.trash
+            : [{ kind: 'recurring', rule, deletedAt }, ...s.trash],
           recurring: s.recurring.filter((r) => r.id !== id),
           transactions: deleteTransactions
             ? s.transactions.filter((t) => t.recurringId !== id)
@@ -425,10 +448,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     (id: string) => {
       const template = stateRef.current.templates.find((t) => t.id === id);
       if (!template) return;
+      const deletedAt = new Date().toISOString();
       deleteWithUndo(
         `Removed ${template.name}`,
-        (s) => ({ ...s, templates: s.templates.filter((t) => t.id !== id) }),
-        (s) => ({ ...s, templates: [...s.templates, template] }),
+        (s) => ({
+          ...s,
+          templates: s.templates.filter((t) => t.id !== id),
+          trash: [{ kind: 'template', template, deletedAt }, ...s.trash],
+        }),
+        (s) => restoreEntry(s, id),
       );
     },
     [deleteWithUndo],
@@ -667,10 +695,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     (id: string) => {
       const goal = stateRef.current.goals.find((g) => g.id === id);
       if (!goal) return;
+      const deletedAt = new Date().toISOString();
       deleteWithUndo(
         `Removed ${goal.name}`,
-        (s) => ({ ...s, goals: s.goals.filter((g) => g.id !== id) }),
-        (s) => ({ ...s, goals: [...s.goals, goal] }),
+        (s) => ({
+          ...s,
+          goals: s.goals.filter((g) => g.id !== id),
+          trash: [{ kind: 'goal', goal, deletedAt }, ...s.trash],
+        }),
+        (s) => restoreEntry(s, id),
       );
     },
     [deleteWithUndo],

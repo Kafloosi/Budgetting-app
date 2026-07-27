@@ -80,15 +80,27 @@ export interface Transaction {
 }
 
 /**
- * A deleted entry, kept for {@link TRASH_RETENTION_DAYS} so a mistake made
+ * Something deleted, kept for {@link TRASH_RETENTION_DAYS} so a mistake made
  * last month is still recoverable. The undo snackbar only covers the moment
  * of deletion; this covers everything after it.
+ *
+ * Only records that restore cleanly on their own live here. People, accounts,
+ * categories, settlements and transfers are deliberately excluded because
+ * their deletion cascades: removing a person deletes their entries, and
+ * removing a category also drops its budgets and refiles everything filed
+ * under it. Handing one of those back alone would be a half-restore that
+ * reads as data loss rather than recovery.
+ *
+ * A recurring rule is trashed only when its generated entries were kept —
+ * "delete entries too" is a cascade and stays outside for the same reason.
  */
-export interface TrashedTransaction {
-  transaction: Transaction;
-  /** ISO timestamp of the deletion */
-  deletedAt: string;
-}
+export type TrashedItem =
+  | { kind: 'transaction'; deletedAt: string; transaction: Transaction }
+  | { kind: 'goal'; deletedAt: string; goal: Goal }
+  | { kind: 'template'; deletedAt: string; template: EntryTemplate }
+  | { kind: 'recurring'; deletedAt: string; rule: RecurringRule };
+
+export type TrashKind = TrashedItem['kind'];
 
 /**
  * A saved entry shape that can be re-added in one tap. Deliberately holds no
@@ -238,7 +250,7 @@ export interface AppState {
   tagBudgets: Record<string, number>;
   goals: Goal[];
   budgetAlertLog: BudgetAlertLog;
-  /** Deleted entries, newest first, purged after TRASH_RETENTION_DAYS */
-  trash: TrashedTransaction[];
+  /** Deleted records, newest first, purged after TRASH_RETENTION_DAYS */
+  trash: TrashedItem[];
   settings: AppSettings;
 }

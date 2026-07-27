@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AppState, Person, SettlementRecord } from './types';
+import { AppState, Person, SettlementRecord, Transaction, TrashedItem } from './types';
 import { catchUp } from './utils/catchup';
 import { todayIso } from './utils/money';
 import { categoryById } from './categories';
@@ -71,7 +71,15 @@ function migrate(parsed: Partial<AppState>): AppState {
     // limits and nothing in the trash, which is exactly the right default.
     personBudgets: parsed.personBudgets ?? {},
     tagBudgets: parsed.tagBudgets ?? {},
-    trash: parsed.trash ?? [],
+    // Trash predates the discriminated union, when it only held entries.
+    trash: (parsed.trash ?? []).map((e) => {
+      const legacy = e as Partial<TrashedItem> & { transaction?: Transaction };
+      return (
+        legacy.kind
+          ? legacy
+          : { kind: 'transaction', deletedAt: legacy.deletedAt ?? '', transaction: legacy.transaction }
+      ) as TrashedItem;
+    }),
     // Categories gained colors and subcategories; old emoji-based custom
     // ones keep working by taking a color from the shared palette.
     customCategories: (parsed.customCategories ?? []).map((c, i) => ({

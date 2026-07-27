@@ -3,7 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { useApp, useCategories, usePeopleById } from '../../context/AppContext';
 import { spacing } from '../../theme';
 import { formatCents, formatDate } from '../../utils/money';
-import { daysLeft, TRASH_RETENTION_DAYS } from '../../utils/trash';
+import { daysLeft, describeTrashed, TRASH_RETENTION_DAYS } from '../../utils/trash';
 import { Card, Label, Row } from '../../components/ui';
 import { useSettingsStyles } from './common';
 
@@ -28,32 +28,40 @@ export function TrashSection() {
       <Card>
         {trash.length === 0 ? (
           <Text style={styles.mutedBody}>
-            Nothing deleted in the last {TRASH_RETENTION_DAYS} days. Entries you
-            delete wait here, so a mistake you notice later is still fixable.
+            Nothing deleted in the last {TRASH_RETENTION_DAYS} days. Deleted
+            entries, goals, templates and recurring rules wait here, so a
+            mistake you notice later is still fixable.
           </Text>
         ) : (
           <>
-            {trash.slice(0, VISIBLE).map((entry) => {
-              const t = entry.transaction;
-              const left = daysLeft(entry);
+            {trash.slice(0, VISIBLE).map((item) => {
+              const { id, kind, title } = describeTrashed(item);
+              const left = daysLeft(item);
+              const detail =
+                item.kind === 'transaction'
+                  ? `${item.transaction.type === 'income' ? '+' : '-'}${formatCents(
+                      item.transaction.amountCents,
+                    )} · ${personById.get(item.transaction.personId)?.name ?? '?'} · ${formatDate(
+                      item.transaction.date,
+                    )}`
+                  : kind;
               return (
-                <Row key={t.id} style={styles.listRow}>
+                <Row key={id} style={styles.listRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.rowTitle} numberOfLines={1}>
-                      {t.note ||
-                        (t.type === 'income'
-                          ? 'Income'
-                          : categoryById(t.categoryId).name)}
+                      {title ||
+                        (item.kind === 'transaction'
+                          ? item.transaction.type === 'income'
+                            ? 'Income'
+                            : categoryById(item.transaction.categoryId).name
+                          : kind)}
                     </Text>
                     <Text style={styles.mutedSmall}>
-                      {t.type === 'income' ? '+' : '-'}
-                      {formatCents(t.amountCents)} ·{' '}
-                      {personById.get(t.personId)?.name ?? '?'} ·{' '}
-                      {formatDate(t.date)} ·{' '}
+                      {detail} ·{' '}
                       {left === 0 ? 'deleted for good today' : `${left} days left`}
                     </Text>
                   </View>
-                  <Pressable onPress={() => restoreFromTrash(t.id)} hitSlop={8}>
+                  <Pressable onPress={() => restoreFromTrash(id)} hitSlop={8}>
                     <Text style={styles.link}>Restore</Text>
                   </Pressable>
                 </Row>
@@ -74,8 +82,10 @@ export function TrashSection() {
           </>
         )}
         <Text style={[styles.mutedSmall, { marginTop: spacing.s }]}>
-          Deleted entries are kept for {TRASH_RETENTION_DAYS} days and do not
-          count towards any total, budget or settlement while they wait here.
+          Kept for {TRASH_RETENTION_DAYS} days, counting towards no total,
+          budget or settlement while they wait. People, accounts and categories
+          are not listed: deleting those also removes the entries filed under
+          them, so handing one back alone would restore less than you lost.
           Emptying the trash can itself be undone.
         </Text>
       </Card>

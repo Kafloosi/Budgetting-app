@@ -5,6 +5,25 @@ for a one- or two-feature drop, `+0.01` for several features moving towards
 the 1.0 release. Versions up to 0.813 are reconstructed from the commit
 history, and were set on the earlier ten-times-coarser ladder.
 
+## 0.8542
+
+The trash now covers more than entries. `AppState.trash` became a
+discriminated union (`TrashedItem`), so goals, quick templates and recurring
+rules are recoverable for the same 30 days rather than being destroyed the
+moment the undo snackbar fades. One `restoreEntry` switches on `kind`, so
+there is still exactly one restore path rather than one per type.
+
+Deliberately excluded, and the Trash screen says so: people, accounts and
+categories. Their deletion cascades — removing a person deletes their entries,
+removing a category drops its budgets and refiles everything under it — so
+handing one back alone would restore less than was lost. A recurring rule is
+trashed only when its generated entries were kept; "delete entries too" is a
+cascade and stays out for the same reason.
+
+Trash written before the union has no `kind`, so `migrate()` defaults it to
+`transaction`. `withTrashed` now filters to entries, since the receipt sweep
+only cares about those.
+
 ## 0.8532
 
 Four features.
