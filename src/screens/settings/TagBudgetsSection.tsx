@@ -57,6 +57,7 @@ export function TagBudgetsSection() {
             <SettingRow
               key={name}
               title={name}
+              titleLines={2}
               sub={`${centsToInput(cents)} per month`}
               onRemove={() => setTagBudget(name, null)}
             />

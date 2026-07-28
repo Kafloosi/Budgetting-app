@@ -308,6 +308,10 @@ export default function StatsScreen() {
   // unrelated change, a theme toggle included, while Stats was mounted.
   const { transactions, customCategories, budgets, personBudgets } = state;
   const rolloverFrom = state.settings.budgetRolloverFrom;
+  // Read outside the memo so it is a dependency. Inside, it would be invisible
+  // to React, and a Stats screen left mounted across midnight on the last of
+  // the month would keep forecasting the month that just ended.
+  const thisMonth = currentPeriodKey('month');
   const liveBudgets = useMemo(
     () =>
       forecastPro && monthView
@@ -319,7 +323,7 @@ export default function StatsScreen() {
               personBudgets,
               settings: { budgetRolloverFrom: rolloverFrom },
             },
-            currentPeriodKey('month'),
+            thisMonth,
           )
         : null,
     [
@@ -330,6 +334,7 @@ export default function StatsScreen() {
       budgets,
       personBudgets,
       rolloverFrom,
+      thisMonth,
     ],
   );
   const forecast = useMemo(

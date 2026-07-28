@@ -148,7 +148,7 @@ export function effectiveTagBudgets(
     personId ? transactions.filter((t) => t.personId === personId) : transactions,
     'month',
     months,
-    tagBudgets,
+    Object.keys(tagBudgets),
   );
   return applyCarryOver(tagBudgets, months, (tag, m) => spend.get(m)?.get(tag) ?? 0);
 }

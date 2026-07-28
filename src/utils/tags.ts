@@ -47,11 +47,6 @@ export interface TagTotal {
 }
 
 /**
- * Expense totals per tag for one period, biggest first. An entry with two
- * tags counts in full towards both — tags overlap by design, so these
- * deliberately do not sum to the period total.
- */
-/**
  * Tag spend per period, restricted to the tags in `only` when given. Shares
  * the one aggregation pass with categories so tag semantics live in one
  * place.
@@ -60,13 +55,22 @@ export function tagCentsPerPeriod(
   transactions: Transaction[],
   periodType: NavPeriodType,
   periods: Iterable<string>,
-  only?: Record<string, unknown>,
+  only?: Iterable<string>,
 ): Map<string, Map<string, number>> {
+  // A Set, not `tag in object`: tags are user-typed, and `in` is true for
+  // every Object.prototype member, so tags called "constructor" or
+  // "toString" passed a filter that did not contain them.
+  const wanted = only ? new Set(only) : null;
   return expenseCentsByKeyPerPeriod(transactions, periodType, periods, (t) =>
-    (t.tags ?? []).filter((tag) => !only || tag in only),
+    (t.tags ?? []).filter((tag) => !wanted || wanted.has(tag)),
   );
 }
 
+/**
+ * Expense totals per tag for one period, biggest first. An entry with two
+ * tags counts in full towards both — tags overlap by design, so these
+ * deliberately do not sum to the period total.
+ */
 export function tagTotals(
   transactions: Transaction[],
   periodType: NavPeriodType,

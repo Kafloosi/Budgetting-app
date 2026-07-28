@@ -5,6 +5,76 @@ for a one- or two-feature drop, `+0.01` for several features moving towards
 the 1.0 release. Versions up to 0.813 are reconstructed from the commit
 history, and were set on the earlier ten-times-coarser ladder.
 
+## 0.8675
+
+What the restructure's own review turned up. The pure-computation half of
+0.8674 — the shared carry-over, the shared aggregation pass, the relocated
+helpers — held up under a line-by-line re-derivation and needed no changes.
+Everything below is in the two halves that did not: the persistence debounce
+and the UI consolidation.
+
+**The debounce did not debounce.** The trailing debounce added in 0.8674 was
+armed in a `useEffect` whose cleanup called the flush. React runs the previous
+cleanup before every re-run, not only at unmount, so each state change
+synchronously flushed the timer the change before it had armed: three theme
+toggles in a second still paid for three whole-ledger serializations and three
+native widget pushes, with the last one now arriving 400 ms late rather than
+immediately. Strictly worse than no debounce. The flush moved to its own
+effect with stable dependencies, so it runs at unmount and nowhere else, and
+the timer now opens a window instead of restarting — an armed timer already
+covers any later change, because a flush always writes the newest state. That
+also removes the starvation the restart form allowed in principle, where edits
+arriving faster than the window would defer the write indefinitely.
+
+**A pending write survives leaving the app.** Android does not reliably run JS
+timers once backgrounded, so a deferred write could have been lost to a
+swipe-away. The pending write is now flushed on any move out of the foreground
+and at unmount.
+
+**A tag named `constructor` no longer slips past a filter.** The budgeted-tags
+restriction tested `tag in tagBudgets`, which is true for every
+`Object.prototype` member. Tags are user-typed, so the filter admitted a
+handful of names nobody budgeted. It is a `Set` now. The visible totals were
+never wrong — the extra keys were written to a map nothing read — but the
+filter is now the filter it claims to be.
+
+**Home's budget cards had quietly swapped places.** Consolidating the category
+and tag budget meters into one component reversed their order on the Home
+tab. Restored.
+
+**Settings rows truncate only where truncating is right.** The shared
+`SettingRow` hardcoded a one-line title, so names that used to wrap now cut
+off — an account called "Joint Savings — Rabobank spaarrekening" became
+"Joint Savings — Rabobank spaar…", which is exactly how two accounts stop
+being distinguishable. Names the user chose — accounts, categories, tags —
+take two lines; a formatted amount or a generated description stays at one.
+
+**A lone row action sits flush again.** The shared row always inset the first
+action, which is right when a second one follows it and wrong when it is the
+only one. Trash rows, whose Restore is alone, had picked up dead space to
+their right.
+
+**The Stats forecast can no longer project the month that just ended.**
+Narrowing the forecast memo's dependencies in 0.8674 left it reading the
+current month from inside the memo, where React cannot see it. A Stats screen
+left open across midnight on the last of the month kept forecasting against
+the old month's budgets until something else changed. The month is read
+outside the memo and is a dependency.
+
+**Accounts restored from an old backup keep their marker dot.** Accounts
+gained colours after launch, and `migrate` never backfilled one — unlike
+categories, which have always taken a colour from the shared palette. A
+colourless account rendered no dot at all, shifting its row out of line with
+every other. Seven new assertions cover the backfill through `parseBackup`.
+
+**Config.** `expo.splash` is not a valid key in SDK 57 — splash configuration
+belongs to the `expo-splash-screen` plugin. Moved there, with the colours the
+Rietveld redesign actually uses rather than the pre-redesign ones it still
+carried. `expo-doctor` is 20/20, from 19/20.
+
+Two doc comments that the 0.8674 insertions had detached from the functions
+they describe are reattached.
+
 ## 0.8674
 
 The restructure pass, applied. No behaviour change: all 159 existing

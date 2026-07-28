@@ -219,28 +219,59 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * the 30 days of trash — and `refreshWidget` re-scans a year of history for
    * the budget meters and then crosses the native bridge. Running them
    * synchronously on every state change meant a theme toggle, a modal
-   * dismissal or each keystroke-driven re-render paid for both. A short
-   * trailing delay collapses a burst of changes into one write without any
-   * risk of losing the last one, since the final state is what gets written.
+   * dismissal or each keystroke-driven re-render paid for both.
+   *
+   * The debounce alone would lose the last edit if the app were backgrounded
+   * or killed inside the window, since Android does not reliably run JS
+   * timers once backgrounded. So the pending write is flushed on the way to
+   * the background and on unmount, and the timer is only an optimization for
+   * a burst of edits while the app is in front of the user.
    */
+  // Always the newest state, so a flush fired from a timer or a lifecycle
+  // event writes what is current rather than what was current when it armed.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  const pendingSave = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushSave = useCallback(() => {
+    if (!pendingSave.current) return;
+    clearTimeout(pendingSave.current);
+    pendingSave.current = null;
+    saveState(stateRef.current);
+    // The widget reads stored state, so it refreshes whenever the app writes
+    // — otherwise it lags by up to Android's update period.
+    refreshWidget(stateRef.current);
+  }, []);
+
   useEffect(() => {
     if (!loadedRef.current) return;
-    const timer = setTimeout(() => {
-      saveState(state);
-      // The widget reads stored state, so it refreshes whenever the app
-      // writes — otherwise it lags by up to Android's update period.
-      refreshWidget(state);
-    }, PERSIST_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [state]);
+    // Opening a window rather than restarting the timer on every change. A
+    // flush always writes stateRef.current, so an armed timer already covers
+    // this change, and the wait for a write is bounded at one window however
+    // fast the edits arrive. Restarting it instead would both starve the
+    // write under a fast burst and — because the cleanup runs before every
+    // re-run, not just at unmount — collapse the debounce into no debounce.
+    if (pendingSave.current) return;
+    pendingSave.current = setTimeout(flushSave, PERSIST_DEBOUNCE_MS);
+  }, [state, flushSave]);
+
+  // Unmount is the last chance to write; the timer would never fire. Its own
+  // effect, so it runs only at unmount and not before every re-arm.
+  useEffect(() => flushSave, [flushSave]);
+
+  // Leaving the app is the other last chance.
+  useEffect(() => {
+    const sub = RNAppState.addEventListener('change', (status) => {
+      if (status !== 'active') flushSave();
+    });
+    return () => sub.remove();
+  }, [flushSave]);
 
   // Fire budget notifications when a category crosses 85% / 100% of its
   // budget this month, remembering what was sent so alerts never repeat.
   // Keyed on the inputs that can change budget status — not the whole state —
   // so theme toggles etc. don't trigger a scan, and the log write (which
   // also prunes past months) doesn't re-arm the effect.
-  const stateRef = useRef(state);
-  stateRef.current = state;
   useEffect(() => {
     if (!loadedRef.current) return;
     const due = dueBudgetAlerts(stateRef.current);

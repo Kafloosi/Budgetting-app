@@ -60,7 +60,13 @@ function migrate(parsed: Partial<AppState>): AppState {
 
   return {
     people,
-    accounts: parsed.accounts ?? [],
+    // Accounts gained colors alongside categories; the marker dot beside an
+    // account name is sized from its colour, so a colourless one would leave
+    // the row misaligned rather than merely unmarked.
+    accounts: (parsed.accounts ?? []).map((a, i) => ({
+      ...a,
+      color: a.color ?? personColors[i % personColors.length],
+    })),
     accountTransfers: parsed.accountTransfers ?? [],
     transactions: parsed.transactions ?? [],
     settlements,

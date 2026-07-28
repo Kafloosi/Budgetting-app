@@ -95,6 +95,7 @@ export function AccountsSection() {
           <SettingRow
             key={a.id}
             title={a.name}
+            titleLines={2}
             markerColor={a.color}
             sub={ACCOUNT_KIND_LABEL[a.kind]}
             trailing={

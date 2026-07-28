@@ -126,11 +126,6 @@ export function rankedCategorySpending(
 }
 
 /**
- * Current balance of every account: its opening amount, plus income landing
- * in it, minus expenses paid from it, adjusted for transfers in and out.
- * Entries without an account simply don't affect any balance.
- */
-/**
  * The selector value meaning "not one person" — the household on a budget
  * screen, Combined on Home. One name, because both screens translate it to
  * `undefined` at the same boundary and had drifted to two different strings.
@@ -151,6 +146,11 @@ export function isLiability(kind: AccountKind): boolean {
   return kind === 'debt';
 }
 
+/**
+ * Current balance of every account: its opening amount, plus income landing
+ * in it, minus expenses paid from it, adjusted for transfers in and out.
+ * Entries without an account simply don't affect any balance.
+ */
 export function accountBalances(
   accounts: Account[],
   transactions: Transaction[],

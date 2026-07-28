@@ -472,6 +472,14 @@ export default function HomeScreen() {
               </Card>
             ) : null}
 
+            {tagBudgetRows.length > 0 ? (
+              <BudgetMeterCard
+                label={`Tag budgets · ${formatMonth(month)}`}
+                rows={tagBudgetRows.map(([tag, b]) => ({ key: tag, label: tag, ...b }))}
+                colors={colors}
+              />
+            ) : null}
+
             {budgetRows.length > 0 ? (
               <BudgetMeterCard
                 label={`Budgets · ${formatMonth(month)}`}
@@ -481,14 +489,6 @@ export default function HomeScreen() {
                   dotColor: r.category.color,
                   ...r,
                 }))}
-                colors={colors}
-              />
-            ) : null}
-
-            {tagBudgetRows.length > 0 ? (
-              <BudgetMeterCard
-                label={`Tag budgets · ${formatMonth(month)}`}
-                rows={tagBudgetRows.map(([tag, b]) => ({ key: tag, label: tag, ...b }))}
                 colors={colors}
               />
             ) : null}

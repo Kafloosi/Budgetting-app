@@ -12,6 +12,17 @@ export interface ReleaseNote {
 /** Newest first */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.8675',
+    highlights: [
+      'Fixed: an edit made just before you left the app could be lost. Anything pending is now written on the way out.',
+      'The app writes to storage far less often while you are typing, which is what last week’s update was meant to do and did not.',
+      'Account, category and tag names no longer cut off mid-word in Settings.',
+      'Fixed: the forecast on Stats could keep showing last month if you left the screen open overnight.',
+      'Fixed: restoring an old backup could leave accounts without their colour marker.',
+      'Budgets and Tag budgets are back in their usual order on Home.',
+    ],
+  },
+  {
     version: '0.8673',
     highlights: [
       'Important fixes to yesterday’s bank import: statements that mark money out in a separate column were being imported as income, amounts like 3.5 were read as 35, and a currency symbol in front of a minus flipped an expense into income. Please re-check anything you imported.',

@@ -80,6 +80,7 @@ export function SettingRow({
   removeLabel = 'Remove',
   trailing,
   flush,
+  titleLines = 1,
 }: {
   title: string;
   sub?: string;
@@ -88,6 +89,13 @@ export function SettingRow({
   editLabel?: string;
   onRemove?: () => void;
   removeLabel?: string;
+  /**
+   * Lines the title may use before it truncates. One keeps a list of rows
+   * even; names the user chose themselves — accounts, categories, tags —
+   * take two, because truncating those is what makes two of them
+   * indistinguishable.
+   */
+  titleLines?: number;
   /** Rendered instead of the actions, for rows that need something else */
   trailing?: React.ReactNode;
   /**
@@ -101,14 +109,16 @@ export function SettingRow({
     <Row style={flush ? undefined : styles.listRow}>
       {markerColor ? <Dot color={markerColor} /> : null}
       <View style={styles.rowBody}>
-        <Text style={styles.rowTitle} numberOfLines={1}>
+        <Text style={styles.rowTitle} numberOfLines={titleLines}>
           {title}
         </Text>
         {sub ? <Text style={styles.mutedSmall}>{sub}</Text> : null}
       </View>
       {trailing}
       {onEdit ? (
-        <Pressable onPress={onEdit} hitSlop={8} style={styles.rowAction}>
+        // The gap belongs between two actions, not after the last one — a
+        // lone Edit sits flush against the card edge like a lone Remove.
+        <Pressable onPress={onEdit} hitSlop={8} style={onRemove ? styles.rowAction : undefined}>
           <Text style={styles.link}>{editLabel}</Text>
         </Pressable>
       ) : null}

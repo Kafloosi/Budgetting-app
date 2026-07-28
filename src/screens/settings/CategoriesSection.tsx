@@ -46,6 +46,7 @@ export function CategoriesSection() {
           <SettingRow
             key={c.id}
             title={c.name}
+            titleLines={2}
             markerColor={c.color}
             sub={c.parentId ? `under ${categoryById(c.parentId).name}` : undefined}
             onRemove={() => removeCategory(c.id)}
