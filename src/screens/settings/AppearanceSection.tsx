@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text } from 'react-native';
+import { Text } from '../../components/Text';
 import { useTheme } from '../../context/AppContext';
 import { spacing, ThemeMode } from '../../theme';
 import { Card, CurrencyChips, Label, SegmentedControl } from '../../components/ui';

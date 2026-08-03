@@ -1,14 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import {
-  Alert,
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Text } from '../components/Text';
 import { useApp, usePeopleById, useTheme } from '../context/AppContext';
 import { font, radius, rules, scale, spacing, ThemeColors } from '../theme';
 import {

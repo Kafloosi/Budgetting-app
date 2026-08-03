@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../../components/Text';
 import { useApp } from '../../context/AppContext';
 import { font, radius, scale, spacing, ThemeColors } from '../../theme';
 import { formatCents, FREQUENCY_LABEL } from '../../utils/money';

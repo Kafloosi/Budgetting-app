@@ -4,96 +4,128 @@
 
 ## World
 
-The Rietveld Schröder house. One small room is made into many by sliding
-planes; nothing is hidden behind ornament, every joint stays visibly honest,
-and colour appears only on the edges that actually move. The budgeting app
-does the same job: one set of money, partitioned per person or combined,
-re-composed rather than re-rendered.
+Airmail. The postal system's graphic language: manila and paper white, the
+red-and-blue barber stripe, the die-cut window, the gummed flap's diagonal,
+the franking impression, the registered-mail serial.
 
-This is not a De Stijl pastiche. Mondrian's canvas is a picture; Rietveld's
-house is a machine you operate. We build the machine.
+The fit is not decorative. Household budgeting *is* the envelope method —
+one pool of money partitioned into containers, spent down, carried over when
+a container is not emptied, and handed between people. An envelope has a
+window you read the amount through, a flap that opens, a weight you can feel
+before you count, and an address naming who it is for. Every one of those is
+a thing this product already does and was drawing as a flat rule.
+
+This is a postal *system*, not paper skeuomorphism. No photographic texture,
+no torn edges, no drop-shadowed realism, no leather or stitching. The world
+arrives through palette, die-cut geometry, the stamp, and the sort.
 
 ## Structure
 
-- **Planes, not cards.** A screen is planes of ground butted against one
-  another and divided by structural rules. There are no floating containers,
-  and a plane inside a plane is a mistake.
-- **Everything is orthogonal.** `borderRadius: 0` everywhere. No rounded
-  corners on any surface, control, input, or swatch.
-- **No shadows, no elevation, no glass.** Separation is a drawn rule, never a
-  blur. Depth does not exist in this world; adjacency does.
-- **Rules carry the hierarchy.** Two weights only: `hairline` divides items
-  inside one plane, `structure` (2px) divides one plane from the next. A third
-  weight means the layout was not decided.
-- **Content sits flush to its plane edge.** Text aligns to the rule, not to a
-  centred inset. Asymmetry is the composition; centred layouts are refused
-  except for the numeric column, which is right-aligned so digits line up.
-- **Divide both axes, unequally.** A plane is not only a horizontal band.
-  Every list of name-and-amount is split by an off-centre vertical rule into a
-  label column and a figure column — `LedgerRow` in `ui.tsx` is where the app
-  does this, and it is the reason the figures bank right against a drawn line
-  instead of floating at the end of a row.
-- **A run of fields is one plane, not many.** `Card` closes with a structural
-  rule by default; `divider="hairline"` is for fields that together make a
-  single plane, so a long form reads as one column rather than as a stack of
-  containers.
+- **The envelope is the container.** One envelope holds one thing: a
+  category and its budget, a person and their balance, a settlement and its
+  serial. An envelope inside an envelope is a mistake; a stack of them is
+  the page.
+- **Stacks have depth, and the depth is paper.** Envelopes overlap with
+  their edges showing. Shadow is short, tight and slightly warm — paper on
+  paper at 2–6px, never a diffuse Material elevation halo and never a glow.
+- **The window is the meter.** A budget's remaining room is a die-cut
+  rectangle with the fill showing through it, not a progress bar laid on
+  top and not a ring. The window is cut *into* the envelope, so the fill
+  reads as contents rather than as chrome.
+- **The flap is the shape motif.** Sheets, menus and expandables open along
+  a diagonal flap edge. Corners take a 4px die-cut radius — the softening a
+  real envelope die has — and nothing takes a pill or a 16px card radius.
+- **The address block sets the composition.** Label left and flush, figure
+  right against a drawn line, secondary detail beneath the label in the
+  smaller register. This is the postal addressing convention and it is why
+  figures bank right in a column down the screen.
+- **The stripe carries structure, not ornament.** The red/blue barber
+  diagonal marks an edge that matters — the active tab, an over-limit
+  envelope, the head of a settlement record. It never fills a region and it
+  never runs along an inert boundary.
 
 ## Colour
 
-Ground and ink are neutral. The three primaries are rationed to edges that
-carry meaning, never spread across a surface.
+Restrained: paper and ink, with the two airmail primaries rationed to
+meaning. The user did not ask for more colour, so colour stays load-bearing.
 
 | Role | Light | Dark | Means |
 | --- | --- | --- | --- |
-| ground | `#FFFFFF` | `#111111` | the plane |
-| groundAlt | `#F2F2F0` | `#1B1B1B` | a recessed plane |
-| ink | `#111111` | `#F4F4F2` | structure and body |
-| inkSoft | `#6B6B6B` | `#9A9A98` | secondary text |
-| **red** | `#D62828` | `#F0524B` | money out, over limit |
-| **blue** | `#1D4ED8` | `#5B8DEF` | money in, the active edge, primary action |
-| **yellow** | `#F4B400` | `#F4C13C` | attention: near a limit, unsettled |
+| paper | `#FBFAF7` | `#16150F` | the ground |
+| manila | `#E8DCC0` | `#2A2718` | an envelope body, a recessed plane |
+| ink | `#1A1A18` | `#F4F2EA` | structure and body text |
+| inkSoft | `#5F5C52` | `#9B978A` | secondary text |
+| **red** | `#D0212B` | `#F2564F` | money out, over limit |
+| **blue** | `#1F4E9C` | `#6E9BE8` | money in, active edge, primary action |
+| **orange** | `#CC5A14` | `#F08A3C` | a limit within reach, unsettled |
+| glassine | `#FFFFFF` @ 62% | `#FFFFFF` @ 10% | a window's pane |
 
 Rules for colour:
 
-- A primary may fill a **meter fill, a moving edge, a selected control, or a
-  numeral**. It may not fill a whole plane or a large region.
-- Never two primaries competing inside one group.
-- Category colours stay as data, expressed as a **4px edge marker** against
-  the rule — never as a filled chip or a soft tinted background.
-- Light/dark is not a style preference here: this app is used one-handed in a
-  supermarket at midday and again on a sofa at night, so both are first-class
-  and every colour above resolves in each.
+- A primary may fill a **window's contents, a stamp, a stripe, an active
+  edge, or a numeral**. It may not fill an envelope body or a whole plane.
+- Never two primaries competing inside one envelope.
+- Category colours stay data, expressed as the **stamp block** beside the row
+  — never as a tinted background or a pill. The stamp carries a hairline
+  perforated edge, which is what keeps a marker findable when its colour was
+  saved under an older palette and sits close to the ground it is drawn on.
+- **Stamp inks are held to a luminance band** (roughly 0.22–0.29) so the same
+  eight colours clear 3:1 on the light envelope and the dark one, and still
+  take a readable label when one fills a chip. A colour that only works in one
+  theme is not a stamp ink.
+- Manila is the envelope; paper is the ground behind it. Both resolve in
+  dark, where manila becomes a dark umber rather than a grey.
+- Light and dark are both first-class: this app is used in a supermarket at
+  midday and on a sofa at night.
 
 ## Type
 
-System stack (Roboto on Android, SF on iOS) — the Operate register is served
-by a workhorse face, and shipping a webfont in a native app buys nothing the
-task needs.
+Two faces, bundled with the app — no runtime fetch, ever.
 
-- **Money is always tabular.** `fontVariant: ['tabular-nums']` on every
-  figure, so columns of digits align down the screen. This is the single
-  most load-bearing type decision in the app.
-- Labels are lowercase and set flush to the rule. The old tracked-uppercase
-  eyebrow over every section is gone.
-- Scale steps are obvious: a balance is set large enough to read at arm's
-  length; everything supporting it drops hard rather than gently.
+- **Archivo** (400/500/600/700) — the register. Labels, body, controls,
+  headings, and figures. A grotesk from the job-printing lineage: official
+  without being neutral, and it carries `tabular-nums`.
+- **Courier Prime** (400/700) — the typewriter register, used only where
+  the postal world types rather than prints: serials, reference codes,
+  stamp impressions, and settlement receipts. Monospaced, so those columns
+  align structurally rather than by feature support.
+
+- **Money is always tabular.** `figures` spreads `fontVariant:
+  ['tabular-nums']` into every amount. This remains the single most
+  load-bearing type decision in the app.
+- Labels are lowercase and flush left. Indicia — the few all-caps postal
+  marks like a tab label or a stamp — take letterspacing and never exceed
+  11sp.
+- Sizes are `sp` through `ms()`, so system font scaling still works.
 
 ## Motion
 
-One authored moment, not scattered transitions: **the plane slide**, built as
-`SlidingPlane` in `ui.tsx`. When the view re-partitions — a different person on
-Home, a different period on Stats — the plane travels into its new position on
-an exponential ease-out and the edge it moved from carries colour for the
-length of the movement, then releases it. The direction comes from the index of
-what is showing, so moving left in the selector moves the plane left.
+Motion is the postal handling of a piece of mail, authored as four moments
+rather than scattered transitions. All of it respects the system
+"remove animations" setting by collapsing to an instant cut.
 
-Nothing else in the app animates. There are no hover effects, no entrance
-animations on lists, and no transition on a control that merely changed state.
+- **The frank.** Recording an entry lands a stamp impression: scale from
+  1.25 with a small rotation settling to rest, 180ms, one overshoot. This
+  is the app's signature moment and it fires only on a committed entry.
+- **The sort.** Lists enter as a stagger of 28ms per row sliding a short
+  distance from the stack, capped at eight rows so a long list never
+  crawls.
+- **The flap.** Sheets and expandables open along the flap diagonal from
+  their top edge, 220ms on an ease-out, rather than sliding up from below.
+- **The fill.** A window's contents spring to a new ratio over 400ms and
+  the figure beside it counts to its new value, so a budget visibly moves
+  rather than jumping.
+
+Tab changes push the outgoing envelope back and bring the incoming one
+forward. Nothing else animates: no hover, no entrance animation on static
+chrome, no transition on a control that merely changed state.
 
 ## What this world refuses
 
-- Rounded corners, shadows, elevation, glass, gradients.
-- Cards as page scaffolding, and any nested card.
-- Pastel or tinted category chips.
+- Photographic paper texture, torn edges, stitching, leather, realism.
+- The fintech rut: rounded card stacks on grey, a donut of categories,
+  pastel category pills, a mint or purple accent.
+- Diffuse elevation halos, glass, blur, gradients, glow.
 - Progress rings and sparklines standing in for figures.
+- Pill radii and 16px card corners; the die-cut is 4px.
 - Decorative emoji, per a standing product commitment.

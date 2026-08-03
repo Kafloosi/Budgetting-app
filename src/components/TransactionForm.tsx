@@ -1,15 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import {
-  Alert,
-  Image,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Alert, Image, Platform, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { Text } from './Text';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { pickReceiptPhoto } from '../utils/receipts';
 import { useApp, useTheme } from '../context/AppContext';

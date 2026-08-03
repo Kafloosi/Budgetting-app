@@ -1,12 +1,6 @@
 import React from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Text } from '../components/Text';
 import { useApp } from '../context/AppContext';
 import { font, scale, spacing, ThemeColors } from '../theme';
 import { FREQUENCY_LABEL, formatCents } from '../utils/money';

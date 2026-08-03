@@ -12,6 +12,17 @@ export interface ReleaseNote {
 /** Newest first */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.8775',
+    highlights: [
+      'A completely new look. Your money now lives in envelopes on a paper desk — lifted, with real depth, instead of flat boxes and hard lines.',
+      'A budget’s remaining room shows through a window cut into its envelope, and it moves when the number changes.',
+      'New typefaces throughout, bundled into the app — still nothing is ever downloaded.',
+      'The app moves now: entries are stamped when you file them, lists sort into place, and the undo slip slides in. All of it turns off if you have animations switched off in Android settings.',
+      'Fixed several things that were hard or impossible to read — the UNDO button, near-limit budget bars, and marker colours in dark mode.',
+      'Buttons and rows are bigger and easier to hit, and screen readers now announce them properly.',
+    ],
+  },
+  {
     version: '0.8675',
     highlights: [
       'Fixed: an edit made just before you left the app could be lost. Anything pending is now written on the way out.',

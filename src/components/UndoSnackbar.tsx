@@ -1,57 +1,121 @@
-import React, { useEffect } from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
-import { useApp } from '../context/AppContext';
-import { font, radius, scale, spacing, ThemeColors } from '../theme';
-import { useThemedStyles } from './ui';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Easing, Pressable, StyleSheet } from 'react-native';
+import { Text } from './Text';
+import { useApp, useTheme } from '../context/AppContext';
+import {
+  darkColors,
+  font,
+  indicium,
+  lift,
+  lightColors,
+  motion,
+  onColor,
+  radius,
+  scale,
+  spacing,
+  ThemeColors,
+} from '../theme';
+import { useReducedMotion, useThemedStyles } from './ui';
 
 const DISMISS_AFTER_MS = 5000;
 
-/** "Entry deleted — UNDO" bar shown briefly after deleting a transaction */
+/**
+ * The return-to-sender slip: an inverted plane that arrives along its flap and
+ * offers the entry back for five seconds.
+ */
 export function UndoSnackbar() {
   const { undoAction, undo, dismissUndo } = useApp();
+  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const reduced = useReducedMotion();
+  const driver = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (!undoAction) return;
+    if (reduced) {
+      driver.setValue(1);
+    } else {
+      driver.setValue(0);
+      Animated.timing(driver, {
+        toValue: 1,
+        duration: motion.flap,
+        easing: Easing.out(Easing.exp),
+        useNativeDriver: true,
+      }).start();
+    }
     const timer = setTimeout(dismissUndo, DISMISS_AFTER_MS);
     return () => clearTimeout(timer);
-  }, [undoAction, dismissUndo]);
+  }, [undoAction, dismissUndo, driver, reduced]);
 
   if (!undoAction) return null;
 
   return (
-    <Pressable style={styles.bar} onPress={undo}>
-      <Text style={styles.text} numberOfLines={1}>
-        {undoAction.label}
-      </Text>
-      <Text style={styles.action}>UNDO</Text>
-    </Pressable>
+    <Animated.View
+      style={[
+        styles.wrap,
+        lift(3, colors),
+        {
+          opacity: driver,
+          transform: [
+            {
+              translateY: driver.interpolate({
+                inputRange: [0, 1],
+                outputRange: [scale(16), 0],
+              }),
+            },
+          ],
+        },
+      ]}
+    >
+      <Pressable
+        style={styles.bar}
+        onPress={undo}
+        accessibilityRole="button"
+        accessibilityLabel={`${undoAction.label}. Tap to undo.`}
+      >
+        <Text style={styles.text} numberOfLines={1}>
+          {undoAction.label}
+        </Text>
+        <Text style={styles.action}>UNDO</Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    bar: {
+    wrap: {
       position: 'absolute',
       left: spacing.l,
       right: spacing.l,
-      bottom: scale(78),
-      backgroundColor: colors.text,
+      bottom: scale(88),
       borderRadius: radius.m,
+      backgroundColor: colors.text,
+    },
+    bar: {
       paddingVertical: spacing.m,
       paddingHorizontal: spacing.l,
+      minHeight: scale(48),
       flexDirection: 'row',
       alignItems: 'center',
     },
+    // The slip is an inverted plane, so its foreground is whatever reads on
+    // the ink rather than the theme's usual body colour.
     text: {
       flex: 1,
-      color: colors.background,
+      color: onColor(colors.text),
       fontSize: font.body,
       marginRight: spacing.m,
     },
+    // Each theme's primary is tuned to read on its own ground, so the inverted
+    // plane borrows the other one. Using this theme's primary here put airmail
+    // blue on near-black at about 2:1 — a colour cue nobody could read.
     action: {
-      color: colors.primary,
+      ...indicium,
       fontSize: font.body,
-      fontWeight: '800',
+      letterSpacing: font.body * 0.1,
+      color: colors.background === lightColors.background
+        ? darkColors.primary
+        : lightColors.primary,
     },
   });

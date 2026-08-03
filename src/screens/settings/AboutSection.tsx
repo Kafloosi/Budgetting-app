@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text } from 'react-native';
+import { Text } from '../../components/Text';
 import { APP_VERSION } from '../../version';
 import { Card, Label, Row } from '../../components/ui';
 import { useSettingsStyles } from './common';

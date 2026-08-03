@@ -5,6 +5,61 @@ for a one- or two-feature drop, `+0.01` for several features moving towards
 the 1.0 release. Versions up to 0.813 are reconstructed from the commit
 history, and were set on the earlier ten-times-coarser ladder.
 
+## 0.8775
+
+A new visual world: **Airmail**. The Rietveld language the app had been
+wearing — every corner square, every separation a drawn rule, no depth by
+doctrine, one animation in the whole product — was doing its job honestly and
+reading as unfinished. This replaces it rather than softening it, because
+polishing a look you have rejected is how you get a worse version of both.
+
+**Why the post office.** Household budgeting *is* the envelope method: one
+pool of money partitioned into containers, spent down, carried over when a
+container is not emptied, and handed between people. An envelope has a window
+you read an amount through, a flap that opens, and an address naming who it is
+for. Every one of those was already a thing this app does and was drawing as a
+flat rule. See DESIGN.md for the full system.
+
+**Depth, which the app had none of.** Envelopes lie on a paper ground and are
+lifted on short, warm, offset shadows — paper on paper, not a diffuse Material
+halo and not a glow. Corners take a 4px die-cut, the softening a real envelope
+die leaves, rather than a 16px card radius or a pill.
+
+**Two bundled faces.** Archivo carries the printed register — labels, body,
+controls, figures — and Courier Prime the typewriter one: serials, codes,
+stamps, receipts. Both ship inside the APK; nothing is fetched at runtime,
+because the no-network commitment is absolute. Weight now picks an actual font
+file rather than asking Android to fake a bold, which is the difference
+between a bundled font looking better than the system one and looking worse.
+Importing by subpath rather than from the package root kept 16 unused weights
+and italics out of the build — 2.5 MB of typeface down to 621 KB.
+
+**The meter is a window.** A budget's remaining room is a die-cut aperture
+with the fill showing through it, so the fill reads as contents rather than as
+a bar laid on top. It moves on a transform, so the movement runs on the UI
+thread instead of relaying out on every frame.
+
+**Motion, authored as four moments** rather than scattered around. *The
+frank*: a stamp lands when an entry is filed — on Home, where the entry
+actually lands, never delaying the form the user is leaving. *The sort*: rows
+arrive staggered, capped at the eight visible at first paint so a long list
+never crawls. *The flap*: the undo slip arrives along its top edge. *The
+fill*: a window springs to its new ratio. Every one of them collapses to an
+instant cut when the system's "remove animations" setting is on.
+
+**Accessibility, which this pass had to fix rather than inherit.** The undo
+slip put airmail blue on near-black at about 2:1 — a colour cue nobody could
+read; the inverted plane now borrows the other theme's primary, each of which
+is already tuned for that ground. Secondary text was 3.9:1 on manila, where
+inactive segmented-control labels sit. The near-limit meter fill was 2.55:1
+against the very track it is read against. Three of the eight marker colours
+were invisible on the dark envelope. All four are fixed, the stamp block
+gained a perforated edge so a colour saved under the old palette is still
+findable, controls have real 48dp targets, and the interactive elements that
+had no accessibility label now have one. 66 new assertions pin every
+foreground/ground pair the UI actually renders, in both themes, so a future
+palette edit cannot quietly drop text under the floor again.
+
 ## 0.8675
 
 What the restructure's own review turned up. The pure-computation half of

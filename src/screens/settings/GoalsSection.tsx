@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
+import { Text } from '../../components/Text';
 import { useApp, usePremium } from '../../context/AppContext';
 import { spacing } from '../../theme';
 import {

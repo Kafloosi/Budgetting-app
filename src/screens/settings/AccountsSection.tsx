@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Alert, View } from 'react-native';
+import { Text } from '../../components/Text';
 import { useApp, useTheme } from '../../context/AppContext';
 import { spacing } from '../../theme';
 import { formatCents, formatDate, parseAmountToCents, todayIso } from '../../utils/money';

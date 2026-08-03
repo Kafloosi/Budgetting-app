@@ -1,41 +1,31 @@
 /**
  * DIRECTION CONTRACT — see DESIGN.md for the system this implements.
  *
- * THESIS: one set of money, partitioned. Home refuses the finance-app card
- * stack: no floating containers, no rounded corners, no elevation. Planes butt
- * against one another and a drawn rule does the separating.
+ * THESIS: household money is a set of envelopes you fill, spend from, and hand
+ * between people. Home refuses the fintech dashboard — no donut of categories,
+ * no pastel pills, no hero-metric template over a grey card grid.
  *
- * OWN-WORLD: the Rietveld Schröder house. Neutral planes of ground, black
- * structural ink, and red/blue/yellow rationed to edges that carry meaning —
- * blue in, red out, yellow near a limit. Category colour is a 4px edge marker
- * against the rule, never a filled chip.
+ * OWN-WORLD: airmail. Paper ground with near-white envelopes lifted on short
+ * warm shadows; airmail blue in, airmail red out, express orange for a limit
+ * in reach. A budget's room is a die-cut window with the fill showing through
+ * it. Category colour is the stamp block, never a tinted background.
  *
  * STORY: the user opens Home mid-errand and reads one number — what is left —
  * then the two flows that produced it, then where each budget stands.
  *
- * FIRST VIEWPORT: person selector, then the balance plane: lowercase label
- * flush left, the balance in large tabular figures beneath it, and `in` / `out`
- * as two hairline-ruled rows with the digits aligned to the right edge.
+ * FIRST VIEWPORT: period nav, then the balance envelope: lowercase label flush
+ * left, the balance in large tabular figures beneath it, and `in` / `out` as
+ * two address blocks with the digits banked right against a drawn line. The
+ * month's entries follow as one envelope, sorted into place.
  *
- * FORM: Rietveld Sliding House, pinned by the user over the assigned roll
- * (seed 11689070, which dealt candidate 5 of the grounded list, The Passbook).
- * No staging was committed from the dealt set — composition follows the world's
- * own plane grammar rather than an imported one.
+ * FORM: the postal envelope system, candidate 4 of the grounded list, staged
+ * as the pivot-fan collapsed to a phone stack. Seed key e34639d2.
  */
 import React, { useMemo, useState } from 'react';
-import {
-  Alert,
-  FlatList,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Text } from '../components/Text';
 import { useApp, useCategories, usePeopleById, useTheme } from '../context/AppContext';
-import { font, radius, rules, scale, spacing, ThemeColors } from '../theme';
+import { font, motion, radius, rules, scale, spacing, ThemeColors } from '../theme';
 import {
   currentMonthKey,
   formatCents,
@@ -56,6 +46,7 @@ import {
   Dot,
   EmptyState,
   Figure,
+  Frank,
   Input,
   Label,
   LedgerRow,
@@ -66,6 +57,7 @@ import {
   screenChrome,
   SegmentedControl,
   SlidingPlane,
+  SortIn,
   useThemedStyles,
 } from '../components/ui';
 import { TransactionForm, TransactionValues } from '../components/TransactionForm';
@@ -136,7 +128,7 @@ function BudgetMeterCard({
   );
 }
 
-export default function HomeScreen() {
+export default function HomeScreen({ franked = 0 }: { franked?: number }) {
   const { state, removeTransaction, updateTransaction, addToGoal } = useApp();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -337,13 +329,30 @@ export default function HomeScreen() {
     setEditing(null);
   };
 
-  const renderItem = ({ item }: { item: Transaction }) => {
+  const renderItem = ({ item, index }: { item: Transaction; index: number }) => {
     const person = personById.get(item.personId);
     const isIncome = item.type === 'income';
     const category = categoryById(isIncome ? undefined : item.categoryId);
-    return (
-      <Pressable onPress={() => setEditing(item)} onLongPress={() => confirmDelete(item)}>
-        <View style={styles.txRow}>
+    // The run of entries is one envelope, so only its outer corners are cut
+    // and only the rows between it carry a fold line.
+    const first = index === 0;
+    const last = index === visibleTransactions.length - 1;
+    const row = (
+      <Pressable
+        onPress={() => setEditing(item)}
+        onLongPress={() => confirmDelete(item)}
+        accessibilityRole="button"
+        accessibilityLabel={`${item.note || (isIncome ? 'Income' : category.name)}, ${
+          isIncome ? 'received' : 'spent'
+        } ${formatCents(item.amountCents)} on ${formatDate(item.date, true)}. Tap to edit, long press to delete.`}
+      >
+        <View
+          style={[
+            styles.txRow,
+            first ? styles.txRowFirst : null,
+            last ? styles.txRowLast : null,
+          ]}
+        >
           <View
             style={[
               styles.txDot,
@@ -387,6 +396,9 @@ export default function HomeScreen() {
         </View>
       </Pressable>
     );
+    // Only the rows on screen at first paint are sorted into place; past that
+    // the stagger would be animating things the user never saw arrive.
+    return index < motion.sortCap ? <SortIn index={index}>{row}</SortIn> : row;
   };
 
   return (
@@ -723,6 +735,8 @@ export default function HomeScreen() {
           </View>
         </Modal>
       ) : null}
+
+      <Frank trigger={franked} label="Recorded" />
     </View>
   );
 }
@@ -777,21 +791,31 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.text,
       marginBottom: spacing.m,
     },
-    // Rows live inside one plane and are divided by hairlines; the plane's own
-    // structural rule closes the list, so a row never draws one of its own.
+    // The month's entries are one envelope: rows share its ground and are
+    // separated by fold lines, and only the run's outer corners are die-cut.
     txRow: {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: colors.card,
-      marginHorizontal: -spacing.l,
       paddingHorizontal: spacing.l,
       paddingVertical: spacing.m,
+      minHeight: scale(56),
       borderBottomWidth: rules.hairline,
       borderBottomColor: colors.border,
     },
+    txRowFirst: {
+      borderTopLeftRadius: radius.m,
+      borderTopRightRadius: radius.m,
+    },
+    txRowLast: {
+      borderBottomWidth: 0,
+      borderBottomLeftRadius: radius.m,
+      borderBottomRightRadius: radius.m,
+    },
     txDot: {
-      width: scale(4),
-      height: scale(16),
+      width: scale(12),
+      height: scale(12),
+      borderRadius: radius.s,
     },
     txNote: {
       fontSize: font.body,

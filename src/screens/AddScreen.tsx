@@ -1,11 +1,6 @@
 import React, { useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { Text } from '../components/Text';
 import { useApp } from '../context/AppContext';
 import { font, spacing, ThemeColors } from '../theme';
 import {

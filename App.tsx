@@ -1,6 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AppState as RNAppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, AppState as RNAppState, Easing, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './src/components/Text';
 import { StatusBar } from 'expo-status-bar';
+import { useFonts } from 'expo-font';
+// Subpath imports, not the package root: the root index re-exports every
+// weight and italic, and Metro follows all of them into the bundle — 22 files
+// and 2.5 MB of typeface for the six faces this app actually sets.
+import { Archivo_400Regular } from '@expo-google-fonts/archivo/400Regular';
+import { Archivo_500Medium } from '@expo-google-fonts/archivo/500Medium';
+import { Archivo_600SemiBold } from '@expo-google-fonts/archivo/600SemiBold';
+import { Archivo_700Bold } from '@expo-google-fonts/archivo/700Bold';
+import { CourierPrime_400Regular } from '@expo-google-fonts/courier-prime/400Regular';
+import { CourierPrime_700Bold } from '@expo-google-fonts/courier-prime/700Bold';
 import {
   launchedFromAddEntry,
   onAddEntryQuickAction,
@@ -18,12 +29,111 @@ import OnboardingScreen from './src/screens/OnboardingScreen';
 import { LockScreen } from './src/components/LockScreen';
 import { UndoSnackbar } from './src/components/UndoSnackbar';
 import { WhatsNew } from './src/components/WhatsNew';
-import { useThemedStyles } from './src/components/ui';
+import { useReducedMotion, useThemedStyles } from './src/components/ui';
 import { notesSince } from './src/changelog';
-import { font, onColor, radius, rules, scale, spacing, ThemeColors } from './src/theme';
+import {
+  font,
+  indicium,
+  lift,
+  onColor,
+  radius,
+  scale,
+  spacing,
+  ThemeColors,
+} from './src/theme';
 import { APP_VERSION } from './src/version';
 
 type Tab = 'home' | 'stats' | 'add' | 'split' | 'history' | 'settings';
+
+/**
+ * The sorting rack. Five slots with Home dead-centre — a standing product
+ * commitment — and one franked marker that travels to whichever slot is
+ * active rather than blinking on and off in place.
+ */
+function TabBar({
+  tabs,
+  activeTab,
+  onSelect,
+  bottomInset,
+}: {
+  tabs: { key: Tab; label: string }[];
+  activeTab: Tab;
+  onSelect: (tab: Tab) => void;
+  bottomInset: number;
+}) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const reduced = useReducedMotion();
+  const activeIndex = Math.max(0, tabs.findIndex((t) => t.key === activeTab));
+  const driver = useRef(new Animated.Value(activeIndex)).current;
+  const [slotWidth, setSlotWidth] = useState(0);
+
+  useEffect(() => {
+    if (reduced) {
+      driver.setValue(activeIndex);
+      return;
+    }
+    const run = Animated.timing(driver, {
+      toValue: activeIndex,
+      duration: 260,
+      easing: Easing.out(Easing.exp),
+      useNativeDriver: true,
+    });
+    run.start();
+    return () => run.stop();
+  }, [activeIndex, driver, reduced]);
+
+  return (
+    <View
+      style={[styles.tabBar, lift(3, colors), { paddingBottom: Math.max(bottomInset, spacing.s) }]}
+      onLayout={(e) => setSlotWidth(e.nativeEvent.layout.width / Math.max(1, tabs.length))}
+    >
+      {slotWidth > 0 ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.tabMarker,
+            {
+              width: slotWidth,
+              backgroundColor: colors.primary,
+              transform: [
+                {
+                  translateX: driver.interpolate({
+                    inputRange: tabs.map((_, i) => i),
+                    outputRange: tabs.map((_, i) => i * slotWidth),
+                  }),
+                },
+              ],
+            },
+          ]}
+        />
+      ) : null}
+      {tabs.map((t) => {
+        const active = activeTab === t.key;
+        return (
+          <Pressable
+            key={t.key}
+            style={styles.tabItem}
+            onPress={() => onSelect(t.key)}
+            accessibilityRole="tab"
+            accessibilityLabel={t.label}
+            accessibilityState={{ selected: active }}
+          >
+            <Text
+              style={[
+                styles.tabLabel,
+                { color: active ? colors.text : colors.textSecondary },
+                active ? styles.tabLabelActive : null,
+              ]}
+            >
+              {t.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
 
 function Root() {
   const { state, loaded, markVersionSeen } = useApp();
@@ -31,6 +141,10 @@ function Root() {
   const styles = useThemedStyles(makeStyles);
   const [tab, setTab] = useState<Tab>('home');
   const [unlocked, setUnlocked] = useState(false);
+  // Bumped when an entry is committed, so Home can frank it on arrival. The
+  // stamp lands where the letter is filed rather than on the form the user is
+  // already leaving — and entry never waits on an animation to finish.
+  const [franked, setFranked] = useState(0);
   const insets = useSafeAreaInsets();
 
   // Re-lock whenever the app goes to the background
@@ -116,18 +230,31 @@ function Root() {
     <View style={styles.app}>
       {statusBar}
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        {activeTab === 'home' && <HomeScreen />}
+        {activeTab === 'home' && <HomeScreen franked={franked} />}
         {activeTab === 'stats' && <StatsScreen />}
         {activeTab === 'split' && showSplit && <SplitScreen />}
-        {activeTab === 'add' && <AddScreen onSaved={() => setTab('home')} />}
+        {activeTab === 'add' && (
+          <AddScreen
+            onSaved={() => {
+              setFranked((n) => n + 1);
+              setTab('home');
+            }}
+          />
+        )}
         {activeTab === 'history' && <HistoryScreen />}
         {activeTab === 'settings' && <SettingsScreen />}
       </View>
 
       {activeTab === 'home' ? (
         <Pressable
-          style={[styles.addButton, { bottom: Math.max(insets.bottom, spacing.s) + scale(56) }]}
+          style={[
+            styles.addButton,
+            lift(3, colors),
+            { bottom: Math.max(insets.bottom, spacing.s) + scale(72) },
+          ]}
           onPress={() => setTab('add')}
+          accessibilityRole="button"
+          accessibilityLabel="Add an entry"
         >
           <Text style={styles.addButtonText}>+</Text>
         </Pressable>
@@ -139,37 +266,31 @@ function Root() {
         <WhatsNew notes={releaseNotes} onDismiss={markVersionSeen} />
       ) : null}
 
-      <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, spacing.s) }]}>
-        {tabs.map((t) => {
-          const active = activeTab === t.key;
-          return (
-            <Pressable key={t.key} style={styles.tabItem} onPress={() => setTab(t.key)}>
-              <View
-                style={[
-                  styles.tabMarker,
-                  { backgroundColor: active ? colors.primary : 'transparent' },
-                ]}
-              />
-              <Text
-                style={[
-                  styles.tabLabel,
-                  {
-                    color: active ? colors.primary : colors.textSecondary,
-                    fontWeight: active ? '700' : '500',
-                  },
-                ]}
-              >
-                {t.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <TabBar
+        tabs={tabs}
+        activeTab={activeTab}
+        onSelect={setTab}
+        bottomInset={insets.bottom}
+      />
     </View>
   );
 }
 
 export default function App() {
+  // The two bundled faces. They ship inside the APK — nothing is fetched, per
+  // the product's standing no-network commitment — so this resolves on the
+  // first frame in practice and only guards the very first launch.
+  const [fontsLoaded] = useFonts({
+    Archivo_400Regular,
+    Archivo_500Medium,
+    Archivo_600SemiBold,
+    Archivo_700Bold,
+    CourierPrime_400Regular,
+    CourierPrime_700Bold,
+  });
+
+  if (!fontsLoaded) return null;
+
   return (
     <SafeAreaProvider>
       <AppProvider>
@@ -188,48 +309,51 @@ const makeStyles = (colors: ThemeColors) =>
     screen: {
       flex: 1,
     },
-    // The tab bar is a plane, so a structural rule closes it — not a hairline.
+    // The rack the mail is sorted into: lifted off the ground like everything
+    // else in this world, rather than ruled off from it.
     tabBar: {
       flexDirection: 'row',
       backgroundColor: colors.card,
-      borderTopWidth: rules.structure,
-      borderTopColor: colors.rule,
       paddingTop: spacing.s,
-      paddingHorizontal: spacing.s,
+    },
+    // One marker that travels to the active slot — the franking line struck
+    // across the top of a sorted letter.
+    tabMarker: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      height: scale(3),
     },
     tabItem: {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-    },
-    tabMarker: {
-      width: scale(16),
-      height: scale(3),
-      borderRadius: radius.s,
-      marginBottom: scale(5),
+      minHeight: scale(48),
+      paddingTop: spacing.xs,
     },
     tabLabel: {
+      ...indicium,
       fontSize: font.small,
+      letterSpacing: font.small * 0.06,
     },
-    // A square ink plane butted against the screen edge. This world has no
-    // depth, so the add action sits flush rather than floating on a shadow.
+    tabLabelActive: {
+      fontWeight: '700',
+    },
+    // The add action is a stamp waiting to be pressed on.
     addButton: {
       position: 'absolute',
-      right: 0,
+      right: spacing.l,
       width: scale(56),
       height: scale(56),
-      borderRadius: radius.s,
+      borderRadius: radius.m,
       backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
-      borderLeftWidth: rules.structure,
-      borderTopWidth: rules.structure,
-      borderColor: colors.rule,
     },
     addButtonText: {
       color: onColor(colors.primary),
       fontSize: font.xlarge,
-      lineHeight: font.xlarge + scale(4),
+      lineHeight: font.xlarge + scale(6),
       fontWeight: '600',
     },
   });

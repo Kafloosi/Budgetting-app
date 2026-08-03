@@ -1,5 +1,6 @@
 import React from 'react';
-import { Pressable, Text } from 'react-native';
+import { Pressable } from 'react-native';
+import { Text } from '../../components/Text';
 import { useApp, useCategories, usePeopleById } from '../../context/AppContext';
 import { spacing } from '../../theme';
 import { formatCents, formatDate } from '../../utils/money';

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Alert, Text } from 'react-native';
+import { Alert } from 'react-native';
+import { Text } from '../../components/Text';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useApp, useTheme } from '../../context/AppContext';
 import { spacing } from '../../theme';

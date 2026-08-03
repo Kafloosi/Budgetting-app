@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
+import { Text } from '../../components/Text';
 import { useApp, usePeopleById } from '../../context/AppContext';
 import { spacing, ThemeColors } from '../../theme';
 import {
