@@ -40,6 +40,7 @@ import {
   scale,
   spacing,
   ThemeColors,
+  type,
 } from './src/theme';
 import { APP_VERSION } from './src/version';
 
@@ -336,8 +337,11 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: font.small,
       letterSpacing: font.small * 0.06,
     },
+    // The face, not the weight: `indicium` already names a family, and a named
+    // family is exactly the case where the Text wrapper stops resolving
+    // fontWeight — so asking for 700 here would have done nothing at all.
     tabLabelActive: {
-      fontWeight: '700',
+      fontFamily: type.registerBold,
     },
     // The add action is a stamp waiting to be pressed on.
     addButton: {

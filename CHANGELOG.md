@@ -5,6 +5,24 @@ for a one- or two-feature drop, `+0.01` for several features moving towards
 the 1.0 release. Versions up to 0.813 are reconstructed from the commit
 history, and were set on the earlier ten-times-coarser ladder.
 
+## 0.8776
+
+Two defects the finish review found in the Airmail drop.
+
+**The active tab never looked active.** `tabLabelActive` asked for
+`fontWeight: '700'`, but the label already names a font family through
+`indicium` — and a named family is exactly the case where the Text wrapper
+stops resolving weight to a face, because the caller has already chosen one.
+So the rule did nothing: the active tab was distinguished by colour alone.
+It names the bold face directly now.
+
+**The undo slip inferred the theme from a colour value.** It compared
+`colors.background` against the light palette's constant to decide which
+primary to borrow. That is correct today and breaks silently the first time
+the palette moves — the slip would take the wrong primary and land back at
+the 2:1 contrast this drop had just fixed. It reads `isDark` from the theme
+instead, which is the theme's own answer to that question.
+
 ## 0.8775
 
 A new visual world: **Airmail**. The Rietveld language the app had been

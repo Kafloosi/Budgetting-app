@@ -25,7 +25,7 @@ const DISMISS_AFTER_MS = 5000;
  */
 export function UndoSnackbar() {
   const { undoAction, undo, dismissUndo } = useApp();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const reduced = useReducedMotion();
   const driver = useRef(new Animated.Value(0)).current;
@@ -76,7 +76,17 @@ export function UndoSnackbar() {
         <Text style={styles.text} numberOfLines={1}>
           {undoAction.label}
         </Text>
-        <Text style={styles.action}>UNDO</Text>
+        <Text
+          style={[
+            styles.action,
+            // Each theme's primary is tuned to read on its own ground, so the
+            // inverted slip borrows the other one. Using this theme's primary
+            // here put airmail blue on near-black at about 2:1.
+            { color: isDark ? lightColors.primary : darkColors.primary },
+          ]}
+        >
+          UNDO
+        </Text>
       </Pressable>
     </Animated.View>
   );
@@ -107,15 +117,12 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: font.body,
       marginRight: spacing.m,
     },
-    // Each theme's primary is tuned to read on its own ground, so the inverted
-    // plane borrows the other one. Using this theme's primary here put airmail
-    // blue on near-black at about 2:1 — a colour cue nobody could read.
+    // Colour is applied at the call site from `isDark`, which is the theme's
+    // own answer — inferring it by comparing a colour value to a palette
+    // constant breaks silently the next time the palette moves.
     action: {
       ...indicium,
       fontSize: font.body,
       letterSpacing: font.body * 0.1,
-      color: colors.background === lightColors.background
-        ? darkColors.primary
-        : lightColors.primary,
     },
   });
