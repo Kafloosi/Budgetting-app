@@ -42,7 +42,7 @@ arrives through palette, die-cut geometry, the stamp, and the sort.
 - **The stripe carries structure, not ornament.** The red/blue barber
   diagonal marks an edge that matters — the active tab, an over-limit
   envelope, the head of a settlement record. It never fills a region and it
-  never runs along an inert boundary.
+  never runs along an inert boundary. *(Not yet built — see Unbuilt below.)*
 
 ## Colour
 
@@ -110,15 +110,33 @@ rather than scattered transitions. All of it respects the system
 - **The sort.** Lists enter as a stagger of 28ms per row sliding a short
   distance from the stack, capped at eight rows so a long list never
   crawls.
-- **The flap.** Sheets and expandables open along the flap diagonal from
-  their top edge, 220ms on an ease-out, rather than sliding up from below.
-- **The fill.** A window's contents spring to a new ratio over 400ms and
-  the figure beside it counts to its new value, so a budget visibly moves
-  rather than jumping.
+- **The flap.** Sheets and slips arrive from their top edge on an
+  exponential ease-out over 220ms, rather than sliding up from below.
+- **The fill.** A window's contents move to a new ratio over 400ms on a
+  transform, so a budget visibly moves rather than jumping.
 
-Tab changes push the outgoing envelope back and bring the incoming one
-forward. Nothing else animates: no hover, no entrance animation on static
-chrome, no transition on a control that merely changed state.
+Nothing else animates: no hover, no entrance animation on static chrome, no
+transition on a control that merely changed state. A press seats a control
+by 1.5% and no more.
+
+## Unbuilt
+
+Devices this world specifies that the current build does not yet have. They
+are recorded here so the system stays whole, and marked so the file never
+describes an app that does not exist:
+
+- **The barber stripe.** No red/blue diagonal is drawn anywhere yet.
+- **The glassine pane.** The token exists in `theme.ts` and nothing uses it.
+- **The registered-mail serial.** Settlements are a first-class record in
+  the product and should carry a typed serial in the Courier register; they
+  currently do not.
+- **The flap as a fold.** The flap moment is a translate, not a rotation
+  along a diagonal edge.
+- **The tab push.** Changing tabs swaps content without the outgoing
+  envelope going back and the incoming one coming forward.
+- **Per-screen composition.** Stats, Split, History, Settings, Onboarding
+  and the shared forms inherit the new primitives but have not had a
+  composition pass of their own.
 
 ## What this world refuses
 
