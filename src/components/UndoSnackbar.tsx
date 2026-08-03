@@ -58,9 +58,12 @@ export function UndoSnackbar() {
           opacity: driver,
           transform: [
             {
+              // Negative: the slip arrives from its top edge, which is what
+              // the flap is. Starting positive slid it up from below —
+              // verbatim the motion the flap was defined to refuse.
               translateY: driver.interpolate({
                 inputRange: [0, 1],
-                outputRange: [scale(16), 0],
+                outputRange: [-scale(16), 0],
               }),
             },
           ],

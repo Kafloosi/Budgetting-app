@@ -176,33 +176,6 @@ export function Figure({
   );
 }
 
-/**
- * A postal indicium: the small tracked caps a piece of mail is marked with.
- * Rationed deliberately — an eyebrow over every section is grammar nobody
- * chose, so this exists for genuine marks like PAID or a tab label.
- */
-export function Indicium({ children, color }: { children: React.ReactNode; color?: string }) {
-  const styles = useStyles();
-  return <Text style={[styles.indicium, color ? { color } : null]}>{children}</Text>;
-}
-
-/**
- * The typewriter register: serials, reference codes, receipt lines. Monospaced,
- * so these columns align structurally rather than by font-feature support.
- */
-export function Typed({
-  children,
-  color,
-  style,
-}: {
-  children: React.ReactNode;
-  color?: string;
-  style?: TextStyle;
-}) {
-  const styles = useStyles();
-  return <Text style={[styles.typed, color ? { color } : null, style]}>{children}</Text>;
-}
-
 export function PrimaryButton({
   label,
   onPress,
@@ -537,9 +510,16 @@ export function Frank({
   const reduced = useReducedMotion();
   const driver = useRef(new Animated.Value(0)).current;
   const [visible, setVisible] = useState(false);
+  // The value already stamped. Home is conditionally mounted, so it unmounts
+  // on every tab change and this component remounts with `trigger` still at
+  // its last value — without this the stamp replayed on every visit to Home,
+  // forever, with nothing recorded. Seeded from the incoming value so a
+  // remount is silent and only a genuine change fires.
+  const stamped = useRef(trigger);
 
   useEffect(() => {
-    if (!trigger) return;
+    if (!trigger || trigger === stamped.current) return;
+    stamped.current = trigger;
     setVisible(true);
     if (reduced) {
       driver.setValue(1);
@@ -593,6 +573,57 @@ export function Frank({
   );
 }
 
+/**
+ * THE BARBER STRIPE — the airmail border, and the only place the two
+ * primaries appear together. It marks an edge that carries meaning: the
+ * active slot in the rack, an envelope past its limit. It never fills a
+ * region and never runs along an inert boundary.
+ *
+ * Built from rotated slashes rather than an image or a gradient library: the
+ * app ships no SVG or gradient dependency, and a repeating diagonal is a
+ * handful of Views inside a clip. `count` is derived from the width so the
+ * pattern keeps its pitch instead of stretching.
+ */
+export function BarberStripe({
+  width,
+  height,
+  style,
+}: {
+  width: number;
+  height: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const { colors } = useTheme();
+  const pitch = scale(7);
+  const slash = scale(3);
+  // The rotation pushes each slash sideways by up to its own height, so the
+  // run starts one pitch early and covers one extra to reach both edges.
+  const count = Math.ceil((width + height) / pitch) + 1;
+  return (
+    <View
+      style={[{ width, height, overflow: 'hidden', flexDirection: 'row' }, style]}
+      pointerEvents="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      {Array.from({ length: count }, (_, i) => (
+        <View
+          key={i}
+          style={{
+            position: 'absolute',
+            left: i * pitch - height,
+            top: -height / 2,
+            width: slash,
+            height: height * 2,
+            backgroundColor: i % 2 === 0 ? colors.expense : colors.primary,
+            transform: [{ rotate: '45deg' }],
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+
 /** How far a plane travels when the view re-partitions. */
 const SLIDE_DISTANCE = scale(28);
 
@@ -626,9 +657,16 @@ export function SlidingPlane({
   const previous = useRef(index);
   const direction = useRef(1);
 
+  // Direction is decided during render, not in the effect. The effect runs
+  // after the render that reads it, so computing it there left the travel one
+  // transition stale: the first move was right by luck and every return
+  // navigation after it ran mirrored.
+  if (previous.current !== index) {
+    direction.current = index > previous.current ? 1 : -1;
+  }
+
   useEffect(() => {
     if (previous.current === index) return;
-    direction.current = index > previous.current ? 1 : -1;
     previous.current = index;
     if (reduced) {
       driver.setValue(0);
@@ -848,6 +886,11 @@ const makeStyles = (colors: ThemeColors) =>
     card: {
       backgroundColor: colors.card,
       borderRadius: radius.m,
+      borderWidth: rules.hairline,
+      // Transparent in light — the shadow lifts it there. In dark this
+      // outline is the depth, because a shadow on a near-black ground is
+      // nothing and lightening the envelope costs foreground contrast.
+      borderColor: colors.edge,
       paddingHorizontal: spacing.l,
       paddingVertical: spacing.l,
       marginBottom: spacing.m,
@@ -884,15 +927,6 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: '600',
       marginTop: spacing.s,
       marginBottom: spacing.s,
-    },
-    indicium: {
-      ...indicium,
-      color: colors.textSecondary,
-    },
-    typed: {
-      fontFamily: faces.typed,
-      fontSize: font.small,
-      color: colors.textSecondary,
     },
     figure: {
       ...figures,
@@ -1019,11 +1053,15 @@ const makeStyles = (colors: ThemeColors) =>
       borderColor: colors.border,
       marginRight: spacing.m,
     },
-    // The die-cut aperture. The inner edge is the cut; the fill sits behind it.
+    // The die-cut aperture. The border is the cut itself — without it this was
+    // a progress bar with a coloured fill, which is the thing the window was
+    // specified not to be.
     track: {
       height: scale(10),
       backgroundColor: colors.manila,
       borderRadius: radius.s,
+      borderWidth: rules.hairline,
+      borderColor: colors.border,
       marginTop: spacing.s,
       overflow: 'hidden',
     },
@@ -1045,27 +1083,41 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.text,
       marginRight: spacing.s,
     },
+    // The typewriter register, on the busiest figure column in the app. A
+    // spent-of-limit pair is exactly what the postal world types rather than
+    // prints, and monospace aligns the two amounts structurally.
     meterValue: {
-      fontSize: font.body,
-      fontWeight: '700',
+      fontFamily: faces.typedBold,
+      fontSize: font.small,
       color: colors.text,
       ...figures,
     },
+    // A typed annotation under the window — "+€12,00 carried over" is exactly
+    // the marginal note the postal register types rather than prints, and it
+    // is where Courier regular earns the file it ships in.
     belowText: {
+      fontFamily: faces.typed,
       marginTop: spacing.xs,
       fontSize: font.small,
       color: colors.textSecondary,
     },
+    // No negative margin: that bled the plane to the screen edge back when
+    // every card was full-bleed. In the inset world it put the moving edge
+    // 16px away from the envelope it marks, on bare ground.
     slidingPlane: {
-      marginHorizontal: -spacing.l,
-      paddingHorizontal: spacing.l,
+      position: 'relative',
     },
+    // Marks the envelope it travels with, and only for the height of the
+    // first one — spanning the full content box drew a primary-coloured rail
+    // down an entire scroll of cards on Stats, which is the inert boundary
+    // this device exists not to run along.
     movingEdge: {
       position: 'absolute',
       left: 0,
       top: 0,
-      bottom: 0,
+      height: scale(56),
       width: rules.structure,
+      borderRadius: radius.s,
     },
     // The address block: label left, figure banked right against a drawn line.
     ledgerRow: {

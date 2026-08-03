@@ -5,6 +5,72 @@ for a one- or two-feature drop, `+0.01` for several features moving towards
 the 1.0 release. Versions up to 0.813 are reconstructed from the commit
 history, and were set on the earlier ten-times-coarser ladder.
 
+## 0.8786
+
+What an independent finish review found in the Airmail drop. Its headline is
+worth recording verbatim, because it is right: *"a competent neutral app
+wearing a warm palette and a 4px radius. It is not yet a committed world."*
+
+**The signature moment fired on every visit to Home.** `Frank`'s own comment
+claimed it fires "when `trigger` changes to a new truthy value and at no
+other time". It did not: Home is conditionally mounted, so it unmounts on
+every tab change and `Frank` remounted with `trigger` already at its last
+value and no guard. After the first-ever save, every trip to Home replayed
+"Recorded" with nothing recorded — devaluing the one memorable device in the
+redesign from the second entry onward. It tracks the value it last stamped.
+
+**The sliding plane travelled the wrong way.** Direction was computed in an
+effect, which runs *after* the render that reads it, so the travel was one
+transition stale: the first move was right by luck and every return
+navigation after it ran mirrored. It is decided during render now. This bug
+predates the redesign — it was carried forward from the previous world
+unnoticed.
+
+**The moving edge was drawing on bare ground.** Its container kept a
+`marginHorizontal: -spacing.l` from the old full-bleed world, putting the
+coloured edge 16px away from the envelope it marks, and its `top: 0,
+bottom: 0` spanned the full content box — so switching period on Stats
+flashed a primary-coloured rail down an entire scroll of cards. Exactly the
+inert boundary the device is specified never to run along.
+
+**The one flap in the app did what the flap refuses.** The undo slip
+interpolated `translateY` from `+16` to `0` — it slid up from below, which
+DESIGN.md defines the flap *against*. The sign was wrong.
+
+**Dark mode had no depth at all**, so the drop's headline fix was missing
+from half the app: a black shadow at elevation 2 on a near-black ground is
+nothing. The obvious answer — lighten the envelope — turned out to be the
+wrong one: at a lighter value the expense red and two stamp inks fell to
+2.7–4.3:1 against it. Dark now carries its depth on the envelope's own
+outline, which costs no foreground contrast.
+
+**Half the type system rendered nowhere.** Courier Prime shipped two font
+files into the APK to draw zero glyphs; the `Typed` and `Indicium`
+components had no call sites at all, and `typedBold` was unreachable by
+construction, since the Text wrapper clears weight whenever a family is
+named. Courier now sets a window's spent-of-limit pair and the typed
+annotation beneath it, and the two dead components are gone.
+
+**The barber stripe is built.** It was the highest-return unbuilt device and
+the only place the two rationed primaries appear together. `BarberStripe`
+draws it from rotated slashes inside a clip — no SVG or gradient dependency
+— and it marks the active slot in the tab rack.
+
+Also: the window has an actual cut now (a hairline border, without which it
+was a progress bar); the transaction row's stamp block gained the perforated
+edge every other marker had; the amount field's placeholder was `1.48:1` and
+is now readable; and the add button hides while an undo is pending, because
+the two occupied the same rectangle with `UNDO` inside the button's
+footprint, at the moment undo matters most.
+
+**DESIGN.md failed its own persistence check** and is rewritten. It carried
+three wrong hexes, omitted the envelope colour that is the substrate of every
+screen, stated a stamp-ink luminance band that half the palette violates
+(while satisfying the 3:1 outcome the band was invented to guarantee), and
+described the flap, the overlapping stack and the typewriter register as
+built. Unbuilt now lists nine things instead of six, including the widget,
+which takes the new palette and keeps a 20px radius.
+
 ## 0.8776
 
 Two defects the finish review found in the Airmail drop.

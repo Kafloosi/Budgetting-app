@@ -6,18 +6,20 @@ import { Dimensions, PixelRatio, Platform, StyleSheet, TextStyle, ViewStyle } fr
  * THESIS: household money is a set of envelopes you fill, spend from, and hand
  * between people. Refuses the fintech dashboard — no rounded card stack on
  * grey, no donut, no pastel category pills.
- * OWN-WORLD: paper ground, near-white envelopes lifted on short warm shadows,
- * manila for recessed planes; airmail red for money out, airmail blue for
- * money in, express orange for a limit in reach. A die-cut window is the
- * meter; the flap diagonal replaces the rounded corner. Archivo for the
- * printed register, Courier Prime for serials and stamps.
+ * OWN-WORLD: paper ground, near-white envelopes lifted on short warm shadows
+ * in light and on their own outline in dark, manila for recessed planes;
+ * airmail red for money out, airmail blue for money in, express orange for a
+ * limit in reach, and the two together only in the barber stripe. A die-cut
+ * window is the meter. Archivo for the printed register, Courier Prime for
+ * what the postal world types.
  * STORY: the user reads what is left in each envelope, drops an amount into
- * one in seconds, and settles up with a receipt carrying a serial.
- * FIRST VIEWPORT: Home is a foreshortened stack of envelopes, the month's
- * balance franked large across the top one, the edges of the rest showing
- * behind it. Add sits dead-centre in the bar.
- * FORM: the postal envelope system, candidate 4 of the grounded list, staged
- * as the pivot-fan collapsed to a phone stack. Seed key e34639d2.
+ * one in seconds, and settles up.
+ * FIRST VIEWPORT: Home is a run of envelopes on the ground, the month's
+ * balance large across the top one. HOME — not Add — sits dead-centre in the
+ * bar, per the standing product commitment; Add is the stamp in the corner.
+ * FORM: the postal envelope system, candidate 4 of the grounded list. The
+ * pivot-fan staging was dealt and is not claimed: on a phone it collapses to
+ * a vertical run, which a list already is. Seed key e34639d2.
  */
 
 // Guideline width: iPhone 12/13/14 class device. Everything scales from this
@@ -69,6 +71,13 @@ export interface ThemeColors {
   glassine: string;
   /** Cast by paper onto paper — warm, never neutral grey */
   shadow: string;
+  /**
+   * The envelope's own outline. Transparent in light, where the shadow does
+   * the lifting; a visible line in dark, where a shadow on a near-black
+   * ground is nothing and the edge is the only depth cue that does not cost
+   * foreground contrast.
+   */
+  edge: string;
   white: string;
 }
 
@@ -96,13 +105,22 @@ export const lightColors: ThemeColors = {
   rule: '#1A1A18',
   glassine: 'rgba(255,255,255,0.62)',
   shadow: '#4A3F28',
+  edge: 'transparent',
   white: '#FFFFFF',
 };
 
 export const darkColors: ThemeColors = {
   background: '#14130F',
+  // Deliberately close to the ground. Lightening the envelope is the obvious
+  // way to get depth in the dark, and it is the wrong one here: every stamp
+  // ink and the expense red are read against this surface, and at #2C291F
+  // they fell to 2.7–4.3:1. Dark gets its depth from `edge` instead, which
+  // costs no foreground contrast.
   card: '#201E17',
-  manila: '#2E2A1C',
+  // Recessed, so darker than the envelope — mirroring light, where manila is
+  // the darkest of the three. It was lighter than the card, which made the
+  // window track and the segment rail read as raised rather than cut in.
+  manila: '#0E0D09',
   primary: '#6E9BE8',
   primarySoft: '#1C2432',
   income: '#6E9BE8',
@@ -116,6 +134,7 @@ export const darkColors: ThemeColors = {
   rule: '#F4F2EA',
   glassine: 'rgba(255,255,255,0.10)',
   shadow: '#000000',
+  edge: '#3A3628',
   white: '#FFFFFF',
 };
 

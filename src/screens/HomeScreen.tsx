@@ -812,10 +812,16 @@ const makeStyles = (colors: ThemeColors) =>
       borderBottomLeftRadius: radius.m,
       borderBottomRightRadius: radius.m,
     },
+    // The perforated edge, same as every other stamp block. This is the
+    // highest-frequency marker in the app and the likeliest to be carrying a
+    // colour saved under the old palette, which is the case the edge exists
+    // for — it was the one marker that did not have it.
     txDot: {
       width: scale(12),
       height: scale(12),
       borderRadius: radius.s,
+      borderWidth: rules.hairline,
+      borderColor: colors.border,
     },
     txNote: {
       fontSize: font.body,

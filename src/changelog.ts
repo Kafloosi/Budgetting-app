@@ -12,10 +12,20 @@ export interface ReleaseNote {
 /** Newest first */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '0.8786',
+    highlights: [
+      'The red-and-blue airmail stripe now marks the tab you are on.',
+      'Fixed: the “Recorded” stamp replayed every time you opened Home, even when you had not recorded anything.',
+      'Dark mode has real depth now — envelopes were sitting flat against the background.',
+      'Fixed: the amount field’s “0,00” hint was almost invisible, and the add button covered the UNDO bar just when you needed it.',
+      'Budget figures are set in a typewriter face, so the two amounts line up.',
+    ],
+  },
+  {
     version: '0.8775',
     highlights: [
       'A completely new look. Your money now lives in envelopes on a paper desk — lifted, with real depth, instead of flat boxes and hard lines.',
-      'A budget’s remaining room shows through a window cut into its envelope, and it moves when the number changes.',
+      'A budget’s remaining room shows through a window cut into its envelope, and it fills smoothly when the number changes.',
       'New typefaces throughout, bundled into the app — still nothing is ever downloaded.',
       'The app moves now: entries are stamped when you file them, lists sort into place, and the undo slip slides in. All of it turns off if you have animations switched off in Android settings.',
       'Fixed several things that were hard or impossible to read — the UNDO button, near-limit budget bars, and marker colours in dark mode.',

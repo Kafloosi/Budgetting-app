@@ -29,7 +29,7 @@ import OnboardingScreen from './src/screens/OnboardingScreen';
 import { LockScreen } from './src/components/LockScreen';
 import { UndoSnackbar } from './src/components/UndoSnackbar';
 import { WhatsNew } from './src/components/WhatsNew';
-import { useReducedMotion, useThemedStyles } from './src/components/ui';
+import { BarberStripe, useReducedMotion, useThemedStyles } from './src/components/ui';
 import { notesSince } from './src/changelog';
 import {
   font,
@@ -96,7 +96,6 @@ function TabBar({
             styles.tabMarker,
             {
               width: slotWidth,
-              backgroundColor: colors.primary,
               transform: [
                 {
                   translateX: driver.interpolate({
@@ -107,7 +106,9 @@ function TabBar({
               ],
             },
           ]}
-        />
+        >
+          <BarberStripe width={slotWidth} height={scale(4)} />
+        </Animated.View>
       ) : null}
       {tabs.map((t) => {
         const active = activeTab === t.key;
@@ -137,7 +138,7 @@ function TabBar({
 }
 
 function Root() {
-  const { state, loaded, markVersionSeen } = useApp();
+  const { state, loaded, markVersionSeen, undoAction } = useApp();
   const { colors, isDark } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [tab, setTab] = useState<Tab>('home');
@@ -246,7 +247,13 @@ function Root() {
         {activeTab === 'settings' && <SettingsScreen />}
       </View>
 
-      {activeTab === 'home' ? (
+      {/*
+        Hidden while an undo is pending: the slip and this button occupied the
+        same rectangle, and the word UNDO sat inside the button's footprint —
+        at exactly the moment undo matters most. The slip owns the corner for
+        the five seconds it is up.
+      */}
+      {activeTab === 'home' && !undoAction ? (
         <Pressable
           style={[
             styles.addButton,
@@ -323,7 +330,7 @@ const makeStyles = (colors: ThemeColors) =>
       position: 'absolute',
       top: 0,
       left: 0,
-      height: scale(3),
+      height: scale(4),
     },
     tabItem: {
       flex: 1,

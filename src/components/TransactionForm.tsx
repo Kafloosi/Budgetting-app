@@ -230,7 +230,10 @@ export function TransactionForm({
             value={amount}
             onChangeText={setAmount}
             placeholder="0,00"
-            placeholderTextColor={colors.border}
+            // The border colour is a rule, not a text colour: it put the
+            // amount field's "0,00" at 1.48:1, so the one affordance telling
+            // the user where to type money was effectively invisible.
+            placeholderTextColor={colors.textSecondary}
             keyboardType="decimal-pad"
             returnKeyType="done"
           />
